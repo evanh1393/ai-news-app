@@ -1,12 +1,14 @@
 # Loaded as root by ai-briefing-app.service (ExecStartPre) before the app starts.
-# The app only answers Caddy over loopback, so block every other outbound connection from the
-# briefing user: tailnet, LAN and internet. systemd's IPAddressDeny would do this, but CT 101
-# is an LXC container without cgroup BPF, where systemd silently ignores it.
+# The app only answers Caddy over loopback, and Caddy only proxies to the app, so block every
+# other outbound connection from the briefing and caddy users: tailnet, LAN and internet.
+# systemd's IPAddressDeny would do this, but CT 101 is an LXC container without cgroup BPF,
+# where systemd silently ignores it.
 destroy table inet ai_briefing_egress
 table inet ai_briefing_egress {
 	chain output {
 		type filter hook output priority filter; policy accept;
 		oif "lo" accept
 		meta skuid "briefing" reject
+		meta skuid "caddy" reject
 	}
 }
