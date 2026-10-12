@@ -2,7 +2,7 @@
 // Grok Bot replaces the file atomically (new inode) every ~30 min, so we open a fresh
 // connection per query batch. Opening SQLite read-only is cheap at this size.
 import Database from 'better-sqlite3';
-import { asc, desc, eq, getTableColumns, like, or, sql } from 'drizzle-orm';
+import { asc, count, desc, eq, getTableColumns, like, or, sql } from 'drizzle-orm';
 import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { BRIEFING_DB } from '$app/env/private';
 import * as schema from './schema';
@@ -34,17 +34,26 @@ export interface FullBriefing extends Briefing {
 	sections: (Section & { items: (Item & { links: Link[] })[] })[];
 }
 
-export function listBriefings(): BriefingSummary[] {
-	return withDb((db) =>
-		db
+/** One page of rows plus the total row count, for offset pagination. */
+export interface Page<T> {
+	rows: T[];
+	total: number;
+}
+
+export function listBriefings(limit: number, offset: number): Page<BriefingSummary> {
+	return withDb((db) => ({
+		rows: db
 			.select({
 				...getTableColumns(briefings),
 				count: sql<number>`(SELECT COUNT(*) FROM ${items} WHERE ${items.briefing_date} = ${briefings.date} AND ${items.is_outage} = 0)`
 			})
 			.from(briefings)
 			.orderBy(desc(briefings.date))
-			.all()
-	);
+			.limit(limit)
+			.offset(offset)
+			.all(),
+		total: db.select({ n: count() }).from(briefings).get()?.n ?? 0
+	}));
 }
 
 export function latestDate(): string | undefined {
@@ -81,8 +90,11 @@ export function getBriefing(date: string): FullBriefing | undefined {
 	});
 }
 
-export function listOutageChecks(): OutageCheck[] {
-	return withDb((db) => db.select().from(outageChecks).orderBy(desc(outageChecks.checked_at)).all());
+export function listOutageChecks(limit: number, offset: number): Page<OutageCheck> {
+	return withDb((db) => ({
+		rows: db.select().from(outageChecks).orderBy(desc(outageChecks.checked_at)).limit(limit).offset(offset).all(),
+		total: db.select({ n: count() }).from(outageChecks).get()?.n ?? 0
+	}));
 }
 
 /** Newest outage check, used for the header dot and banners. */
