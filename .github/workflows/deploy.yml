@@ -1,0 +1,60 @@
+# PRs get a type check and build. Pushes to main (PR merges) also deploy to CT 101 over the tailnet.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build
+
+  deploy:
+    needs: check
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: deploy-ct101
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Joins the tailnet as an ephemeral tag:ci node. The ACL lets tag:ci SSH to tag:briefing as evanh.
+      - uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      # deploy.sh talks to the "ai-briefing" host alias, same as from a laptop.
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          cp deploy/known_hosts ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<'EOF'
+          Host ai-briefing
+            HostName ai-briefing.taila927a9.ts.net
+            User evanh
+            StrictHostKeyChecking yes
+          EOF
+
+      - run: npm run deploy
