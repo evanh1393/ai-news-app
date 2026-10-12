@@ -1,0 +1,17 @@
+# Weekly PRs for npm and GitHub Actions updates. Each PR runs the check job; merging deploys.
+# Security fixes open right away, outside the weekly schedule.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      # One PR for all non-major bumps instead of one per package.
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
