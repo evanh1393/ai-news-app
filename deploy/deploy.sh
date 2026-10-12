@@ -57,13 +57,13 @@ echo "syncing build"
 rsync -rl --delete "$root/build/" "${host}:${remote}/build/"
 
 echo "installing Caddyfile and systemd unit"
-scp "$root/deploy/Caddyfile" "${host}:/tmp/ai-briefing.Caddyfile"
+scp "$root/deploy/Caddyfile" "${host}:/tmp/Caddyfile"
 scp "$root/deploy/ai-briefing-app.service" "${host}:/tmp/ai-briefing-app.service"
 ssh "$host" 'set -euo pipefail
-  sudo caddy validate --config /tmp/ai-briefing.Caddyfile
-  sudo cp /tmp/ai-briefing.Caddyfile /etc/caddy/Caddyfile
+  sudo caddy validate --adapter caddyfile --config /tmp/Caddyfile
+  sudo cp /tmp/Caddyfile /etc/caddy/Caddyfile
   sudo cp /tmp/ai-briefing-app.service /etc/systemd/system/ai-briefing-app.service
-  rm -f /tmp/ai-briefing.Caddyfile /tmp/ai-briefing-app.service
+  rm -f /tmp/Caddyfile /tmp/ai-briefing-app.service
   sudo systemctl daemon-reload
   sudo systemctl reload caddy
   sudo systemctl restart ai-briefing-app
