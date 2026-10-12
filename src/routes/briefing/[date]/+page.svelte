@@ -6,5 +6,5 @@
 
 <svelte:head><title>{data.briefing.title}</title></svelte:head>
 
-<p class="mu"><a href="/archive">← Archive</a></p>
+<p class="text-sm"><a class="link link-primary" href="/archive">← Archive</a></p>
 <BriefingView briefing={data.briefing} />

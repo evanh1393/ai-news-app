@@ -4,14 +4,16 @@
 
 <svelte:head><title>Archive · AI Briefing</title></svelte:head>
 
-<h2>Archive</h2>
-<div class="card list">
+<h2 class="mb-3 text-2xl font-bold">Archive</h2>
+<ul class="menu w-full rounded-box border border-base-300 bg-base-200">
 	{#each data.briefings as b (b.date)}
-		<a href="/briefing/{b.date}">
-			{b.outage_alert ? '🚨 ' : ''}<b>{b.date}</b>
-			<span class="mu">— {b.title} · {b.count} items</span>
-		</a>
+		<li>
+			<a href="/briefing/{b.date}" class="block">
+				{b.outage_alert ? '🚨 ' : ''}<b>{b.date}</b>
+				<span class="text-sm text-base-content/60">— {b.title} · {b.count} items</span>
+			</a>
+		</li>
 	{:else}
-		<p style="padding: 10px 14px">No briefings yet.</p>
+		<li class="p-3">No briefings yet.</li>
 	{/each}
-</div>
+</ul>
