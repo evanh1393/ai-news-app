@@ -22,8 +22,11 @@ npm22() {
   "$@"
 }
 
-echo "installing local dependencies"
-npm22 npm ci
+# PREBUILT=1: build/ already exists (CI builds it in a job that never joins the tailnet).
+if [[ "${PREBUILT:-}" != 1 ]]; then
+  echo "installing local dependencies"
+  npm22 npm ci
+fi
 
 lock_local=$(sha256sum package-lock.json | awk '{print $1}')
 # Written only after a successful server install, so a failed or partial npm ci forces a retry.
@@ -51,8 +54,10 @@ if [[ "$need_deps" == 1 ]]; then
   ssh "$host" "cd '$remote' && npm ci --omit=dev --ignore-scripts && echo '$lock_local' > '$lock_marker'"
 fi
 
-echo "building"
-npm22 npm run build
+if [[ "${PREBUILT:-}" != 1 ]]; then
+  echo "building"
+  npm22 npm run build
+fi
 
 echo "syncing build"
 rsync -rl --delete "$root/build/" "${host}:${remote}/build/"
