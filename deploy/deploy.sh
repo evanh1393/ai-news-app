@@ -26,12 +26,11 @@ echo "installing local dependencies"
 npm22 npm ci
 
 lock_local=$(sha256sum package-lock.json | awk '{print $1}')
-lock_remote=$(ssh "$host" "sha256sum '$remote/package-lock.json' 2>/dev/null" | awk '{print $1}' || true)
+# Written only after a successful server install, so a failed or partial npm ci forces a retry.
+lock_marker="$remote/node_modules/.deployed-lock-sha256"
+lock_remote=$(ssh "$host" "cat '$lock_marker' 2>/dev/null" || true)
 need_deps=0
 if [[ "$lock_local" != "$lock_remote" ]]; then
-  need_deps=1
-fi
-if ! ssh "$host" "test -d '$remote/node_modules'"; then
   need_deps=1
 fi
 
@@ -47,7 +46,9 @@ rsync -rl --delete \
 
 if [[ "$need_deps" == 1 ]]; then
   echo "installing server dependencies"
-  ssh "$host" "cd '$remote' && npm ci"
+  # Runtime packages only. --ignore-scripts: better-sqlite3 ships prebuilt binaries, but npm ci
+  # still tries node-gyp for it, and CT 101 has no compiler.
+  ssh "$host" "cd '$remote' && npm ci --omit=dev --ignore-scripts && echo '$lock_local' > '$lock_marker'"
 fi
 
 echo "building"

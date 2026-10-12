@@ -19,7 +19,7 @@ Production on CT 101 is Node 22. `npm run dev` reads a database only if `BRIEFIN
 npm run deploy
 ```
 
-That builds here with Node 22, copies the app and `deploy/Caddyfile` to CT 101, restarts `ai-briefing-app`, and reloads Caddy. When `package-lock.json` changes, the script also runs `npm ci` on the container. `node build` needs those packages at runtime.
+That builds here with Node 22, copies the app and `deploy/Caddyfile` to CT 101, restarts `ai-briefing-app`, and reloads Caddy. When `package-lock.json` changes (or the last server install failed), the script also runs `npm ci --omit=dev --ignore-scripts` on the container. `node build` loads the runtime `dependencies` (`better-sqlite3`, `drizzle-orm`) from there.
 
 ## CI/CD
 
