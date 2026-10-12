@@ -1,5 +1,5 @@
 <script lang="ts">
-	import BriefingView from '$lib/components/BriefingView.svelte';
+	import BriefingView from './briefing/BriefingView.svelte';
 
 	let { data } = $props();
 </script>
