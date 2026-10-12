@@ -30,3 +30,5 @@ Repo secrets: `TS_OAUTH_CLIENT_ID` and `TS_OAUTH_SECRET`, from a Tailscale OAuth
 ## Hardening on CT 101
 
 `ai-briefing-app.service` runs sandboxed (`systemd-analyze security ai-briefing-app` ≈ 1.7): the filesystem is read-only to it, including its own code, and it has no capabilities. Before the app starts, the unit loads `deploy/ai-briefing-egress.nft` (installed to `/etc/ai-briefing/egress.nft`), which rejects every non-loopback connection the `briefing` and `caddy` users open, so neither the app nor Caddy can reach the tailnet, LAN or internet. systemd's `IPAddressDeny` would be simpler, but it does nothing in this LXC container. Anything else run as `briefing` (e.g. `npm install`) is blocked too; install packages as `evanh`.
+
+Grok Bot uploads as `newsbot`, whose login shell is `deploy/briefing-upload` (installed to `/usr/local/sbin/briefing-upload` by `npm run deploy`). Whatever command it is sent, it only reads a gzipped tar of `briefing.db` and `README.md` from stdin and swaps them into `/opt/ai-briefing/data` and `/opt/ai-briefing/docs`. `newsbot` owns those two directories and nothing else.

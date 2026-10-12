@@ -62,17 +62,19 @@ fi
 echo "syncing build"
 rsync -rl --delete "$root/build/" "${host}:${remote}/build/"
 
-echo "installing Caddyfile, systemd unit, and egress firewall"
+echo "installing Caddyfile, systemd unit, egress firewall, and upload shell"
 scp "$root/deploy/Caddyfile" "${host}:/tmp/Caddyfile"
 scp "$root/deploy/ai-briefing-app.service" "${host}:/tmp/ai-briefing-app.service"
 scp "$root/deploy/ai-briefing-egress.nft" "${host}:/tmp/ai-briefing-egress.nft"
+scp "$root/deploy/briefing-upload" "${host}:/tmp/briefing-upload"
 ssh "$host" 'set -euo pipefail
   sudo caddy validate --adapter caddyfile --config /tmp/Caddyfile
   sudo nft -c -f /tmp/ai-briefing-egress.nft
   sudo cp /tmp/Caddyfile /etc/caddy/Caddyfile
   sudo cp /tmp/ai-briefing-app.service /etc/systemd/system/ai-briefing-app.service
   sudo install -D -m 644 /tmp/ai-briefing-egress.nft /etc/ai-briefing/egress.nft
-  rm -f /tmp/Caddyfile /tmp/ai-briefing-app.service /tmp/ai-briefing-egress.nft
+  sudo install -m 755 /tmp/briefing-upload /usr/local/sbin/briefing-upload
+  rm -f /tmp/Caddyfile /tmp/ai-briefing-app.service /tmp/ai-briefing-egress.nft /tmp/briefing-upload
   sudo systemctl daemon-reload
   sudo systemctl reload caddy
   sudo systemctl restart ai-briefing-app
