@@ -22,8 +22,10 @@
 	}
 
 	function toggleTheme() {
-		const light = document.documentElement.classList.toggle('light');
-		localStorage.theme = light ? 'light' : 'dark';
+		const root = document.documentElement;
+		const theme = root.dataset.theme === 'light' ? 'dark' : 'light';
+		root.dataset.theme = theme;
+		localStorage.theme = theme;
 	}
 
 	// Refresh data (outage dot etc.) every 5 minutes.
@@ -35,85 +37,29 @@
 
 <svelte:head><title>AI Briefing</title></svelte:head>
 
-<header>
-	<a class="brand" href="/">🤖 AI Briefing</a>
-	<nav>
-		{#each nav as n (n.href)}
-			<a href={n.href} class:on={isActive(n.href)}>
-				{#if n.href === '/outages'}<span class="dot" class:red={data.active}></span>{/if}{n.label}
-			</a>
-		{/each}
+<header class="navbar sticky top-0 z-10 flex-wrap gap-2 border-b border-base-300 bg-base-200 px-4 py-2">
+	<a class="mr-auto text-lg font-bold" href="/">🤖 AI Briefing</a>
+	<nav class="order-last w-full sm:order-none sm:w-auto">
+		<ul class="menu menu-horizontal menu-sm gap-1 p-0">
+			{#each nav as n (n.href)}
+				<li>
+					<a href={n.href} class:menu-active={isActive(n.href)}>
+						{#if n.href === '/outages'}
+							<span class="status" class:status-success={!data.active} class:status-error={data.active} class:animate-pulse={data.active}></span>
+						{/if}{n.label}
+					</a>
+				</li>
+			{/each}
+		</ul>
 	</nav>
-	<button onclick={toggleTheme} aria-label="Toggle theme">◐</button>
+	<button class="btn btn-ghost btn-sm btn-square" onclick={toggleTheme} aria-label="Toggle theme">
+		<svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+			<circle cx="12" cy="12" r="9" /><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" />
+		</svg>
+	</button>
 </header>
 
-<main>
+<main class="mx-auto max-w-6xl p-3 sm:p-4">
 	{@render children()}
-	<p class="mu">Data updated {fmtTime(data.ingestedAt)}</p>
+	<p class="mt-4 text-sm text-base-content/60">Data updated {fmtTime(data.ingestedAt)}</p>
 </main>
-
-<style>
-	header {
-		position: sticky;
-		top: 0;
-		background: var(--card);
-		border-bottom: 1px solid var(--bd);
-		padding: 10px 16px;
-		display: flex;
-		gap: 14px;
-		align-items: center;
-		flex-wrap: wrap;
-		z-index: 2;
-	}
-	.brand {
-		font-size: 17px;
-		font-weight: 700;
-		margin-right: auto;
-		color: var(--tx);
-		text-decoration: none;
-	}
-	nav a {
-		color: var(--mu);
-		text-decoration: none;
-		margin-right: 12px;
-	}
-	nav a.on {
-		color: var(--tx);
-		font-weight: 600;
-	}
-	.dot {
-		display: inline-block;
-		width: 9px;
-		height: 9px;
-		border-radius: 50%;
-		background: var(--grn);
-		margin-right: 5px;
-	}
-	.dot.red {
-		background: var(--red);
-		animation: pulse 1.2s infinite;
-	}
-	@keyframes pulse {
-		50% {
-			opacity: 0.3;
-		}
-	}
-	main {
-		max-width: 1100px;
-		margin: auto;
-		padding: 16px;
-	}
-	@media (max-width: 600px) {
-		header {
-			padding: 8px 12px;
-			gap: 8px;
-		}
-		nav a {
-			margin-right: 9px;
-			font-size: 14px;
-		}
-		main {
-			padding: 12px;
-		}
-	}
-</style>
