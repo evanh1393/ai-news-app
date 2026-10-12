@@ -1,0 +1,88 @@
+:root {
+	--bg: #0d1117;
+	--card: #161b22;
+	--bd: #30363d;
+	--tx: #e6edf3;
+	--mu: #8b949e;
+	--ac: #58a6ff;
+	--red: #f85149;
+	--grn: #3fb950;
+	color-scheme: dark;
+}
+:root.light {
+	--bg: #f6f8fa;
+	--card: #fff;
+	--bd: #d0d7de;
+	--tx: #1f2328;
+	--mu: #59636e;
+	--ac: #0969da;
+	color-scheme: light;
+}
+* {
+	box-sizing: border-box;
+}
+body {
+	margin: 0;
+	background: var(--bg);
+	color: var(--tx);
+	font: 15px/1.55 system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+a {
+	color: var(--ac);
+}
+.mu {
+	color: var(--mu);
+	font-size: 13px;
+}
+.card {
+	background: var(--card);
+	border: 1px solid var(--bd);
+	border-radius: 10px;
+	padding: 14px 16px;
+}
+.banner {
+	border-radius: 10px;
+	padding: 12px 16px;
+	margin: 14px 0;
+	border: 1px solid var(--bd);
+	background: var(--card);
+}
+.banner.red {
+	border-color: var(--red);
+	background: rgba(248, 81, 73, 0.12);
+}
+.list {
+	padding: 0;
+}
+.list a {
+	display: block;
+	padding: 10px 14px;
+	border-bottom: 1px solid var(--bd);
+	text-decoration: none;
+	color: var(--tx);
+}
+.list a:last-child {
+	border-bottom: none;
+}
+.list a:hover {
+	background: rgba(127, 127, 127, 0.1);
+}
+code {
+	background: rgba(127, 127, 127, 0.18);
+	padding: 1px 4px;
+	border-radius: 4px;
+	font-size: 13px;
+	word-break: break-all;
+}
+button,
+input {
+	background: none;
+	border: 1px solid var(--bd);
+	color: var(--tx);
+	border-radius: 6px;
+	padding: 3px 8px;
+	font: inherit;
+}
+button {
+	cursor: pointer;
+}
