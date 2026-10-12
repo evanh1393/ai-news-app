@@ -1,5 +1,5 @@
 import { error } from '@sveltejs/kit';
-import { getBriefing } from '$lib/server/db';
+import { getBriefing } from '#lib/server/db.js';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = ({ params }) => {

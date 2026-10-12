@@ -1,8 +1,8 @@
 <script lang="ts">
 	import '../app.css';
 	import { page } from '$app/state';
-	import { invalidateAll } from '$app/navigation';
-	import { fmtTime } from '$lib/format';
+	import { refreshAll } from '$app/navigation';
+	import { fmtTime } from '#lib/format.js';
 
 	let { data, children } = $props();
 
@@ -30,7 +30,7 @@
 
 	// Refresh data (outage dot etc.) every 5 minutes.
 	$effect(() => {
-		const t = setInterval(() => invalidateAll(), 5 * 60_000);
+		const t = setInterval(() => refreshAll(), 5 * 60_000);
 		return () => clearInterval(t);
 	});
 </script>

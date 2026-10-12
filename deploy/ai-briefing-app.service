@@ -10,7 +10,6 @@ WorkingDirectory=/opt/ai-briefing/app
 Environment=NODE_ENV=production
 Environment=HOST=127.0.0.1
 Environment=PORT=3000
-Environment=ORIGIN=https://ai-briefing.taila927a9.ts.net
 Environment=BRIEFING_DB=/opt/ai-briefing/data/briefing.db
 Environment=NODE_OPTIONS=--disable-warning=ExperimentalWarning
 # "+" runs this as root, outside the sandbox below.
