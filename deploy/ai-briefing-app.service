@@ -13,9 +13,34 @@ Environment=PORT=3000
 Environment=ORIGIN=https://ai-briefing.taila927a9.ts.net
 Environment=BRIEFING_DB=/opt/ai-briefing/data/briefing.db
 Environment=NODE_OPTIONS=--disable-warning=ExperimentalWarning
+# "+" runs this as root, outside the sandbox below.
+ExecStartPre=+/usr/sbin/nft -f /etc/ai-briefing/egress.nft
 ExecStart=/usr/bin/node build
 Restart=always
 RestartSec=3
+
+# Sandbox. The app reads the DB and answers Caddy on loopback; it needs nothing else.
+# Everything is read-only to it, including its own code.
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+UMask=0077
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+RestrictSUIDSGID=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
 
 [Install]
 WantedBy=multi-user.target
