@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { fmtTime } from '$lib/format';
+	import { fmtTime } from '#lib/format.js';
 
 	let { data } = $props();
 </script>

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { FullBriefing } from '$lib/server/db';
+	import type { FullBriefing } from '#lib/server/db.js';
 
 	let { briefing }: { briefing: FullBriefing } = $props();
 </script>

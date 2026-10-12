@@ -1,4 +1,4 @@
-import { getBriefing, latestDate } from '$lib/server/db';
+import { getBriefing, latestDate } from '#lib/server/db.js';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = () => {

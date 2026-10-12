@@ -4,12 +4,12 @@
 import Database from 'better-sqlite3';
 import { asc, desc, eq, getTableColumns, like, or, sql } from 'drizzle-orm';
 import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
-import { env } from '$env/dynamic/private';
+import { BRIEFING_DB } from '$app/env/private';
 import * as schema from './schema';
 import { briefings, itemLinks, items, meta, outageChecks, sections, sources } from './schema';
 import type { Briefing, Item, Link, OutageCheck, Section, Source } from './schema';
 
-const DB_PATH = env.BRIEFING_DB ?? '/opt/ai-briefing/data/briefing.db';
+const DB_PATH = BRIEFING_DB;
 
 type Db = BetterSQLite3Database<typeof schema>;
 

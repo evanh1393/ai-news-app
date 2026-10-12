@@ -10,7 +10,7 @@
 <svelte:head><title>Search · AI Briefing</title></svelte:head>
 
 <h2 class="mb-3 text-2xl font-bold">Search</h2>
-<form method="GET" class="join mb-3 flex" data-sveltekit-keepfocus>
+<form method="GET" class="join mb-3 flex" data-sveltekit-reset="false">
 	<input class="input join-item flex-1" name="q" type="search" value={data.q} placeholder="e.g. nvidia, drex, outage" autofocus />
 	<button class="btn btn-primary join-item">Search</button>
 </form>
