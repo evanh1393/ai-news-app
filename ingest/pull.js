@@ -16,7 +16,7 @@ import { createSign } from 'node:crypto';
 import { existsSync, linkSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import Database from 'better-sqlite3';
-import { openWriter, pendingMigrations } from './apply.js';
+import { openWriter, pendingMigrations, verify } from './apply.js';
 import { FormatError, parseBriefing } from './briefing-md.js';
 
 const KEY_PATH = process.env.DRIVE_KEY ?? '/etc/ai-briefing/drive-key.json';
@@ -27,8 +27,16 @@ const DRIVE = 'https://www.googleapis.com/drive/v3/files';
 const MAX_BYTES = 512 * 1024;
 const NAME = /^briefing-(\d{4}-\d{2}-\d{2})\.md$/;
 
+/** @typedef {{ id: string, name: string, mimeType: string, md5Checksum?: string, size?: string, modifiedTime: string }} DriveFile */
+/** @typedef {import('./apply.js').Entry} Entry */
+
+/** @param {string} s */
 const b64url = (s) => Buffer.from(s).toString('base64url');
 
+/**
+ * @param {string} url
+ * @param {RequestInit} [init]
+ */
 async function http(url, init = {}) {
 	const res = await fetch(url, { ...init, signal: AbortSignal.timeout(30_000) });
 	if (!res.ok) {
@@ -63,7 +71,12 @@ async function accessToken() {
 	return { token: (await res.json()).access_token, email: key.client_email };
 }
 
+/**
+ * @param {string} token
+ * @returns {Promise<DriveFile[]>}
+ */
 async function listFolder(token) {
+	/** @type {DriveFile[]} */
 	const files = [];
 	let pageToken;
 	do {
@@ -83,8 +96,12 @@ async function listFolder(token) {
 	return files;
 }
 
-/** Briefing files only, newest upload winning if a name appears twice. Logs anything skipped. */
+/**
+ * Briefing files only, newest upload winning if a name appears twice. Logs anything skipped.
+ * @param {DriveFile[]} files
+ */
 function briefingFiles(files) {
+	/** @type {Map<string, DriveFile & { md5Checksum: string }>} */
 	const byName = new Map();
 	for (const f of files) {
 		if (!NAME.test(f.name)) {
@@ -101,11 +118,15 @@ function briefingFiles(files) {
 		}
 		const prev = byName.get(f.name);
 		if (prev) console.warn(`${f.name} is in the folder twice; using the newest`);
-		if (!prev || f.modifiedTime > prev.modifiedTime) byName.set(f.name, f);
+		if (!prev || f.modifiedTime > prev.modifiedTime) byName.set(f.name, { ...f, md5Checksum: f.md5Checksum });
 	}
 	return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/**
+ * @param {string} token
+ * @param {DriveFile} f
+ */
 async function download(token, f) {
 	const res = await http(`${DRIVE}/${encodeURIComponent(f.id)}?alt=media`, {
 		headers: { authorization: `Bearer ${token}` }
@@ -122,7 +143,11 @@ function liveState() {
 	try {
 		const has = db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'drive_files'").get();
 		return {
-			done: has ? new Map(db.prepare('SELECT name, md5 FROM drive_files').all().map((r) => [r.name, r.md5])) : new Map(),
+			done: new Map(
+				has
+					? /** @type {{ name: string, md5: string }[]} */ (db.prepare('SELECT name, md5 FROM drive_files').all()).map((r) => [r.name, r.md5])
+					: []
+			),
 			pending: pendingMigrations(db).map((m) => m.name)
 		};
 	} finally {
@@ -130,7 +155,10 @@ function liveState() {
 	}
 }
 
-/** Migrate a copy of the database, apply entries to it, check it, and swap it in. */
+/**
+ * Migrate a copy of the database, apply entries to it, check it, and swap it in.
+ * @param {Entry[]} entries
+ */
 async function commit(entries) {
 	const dir = dirname(DB_PATH);
 	const tmp = join(dir, `.${basename(DB_PATH)}.pull`);
@@ -145,8 +173,7 @@ async function commit(entries) {
 	const db = new Database(tmp);
 	try {
 		openWriter(db).applyAll(entries);
-		const check = db.pragma('quick_check', { simple: true });
-		if (check !== 'ok') throw new Error(`quick_check on new database: ${check}`);
+		verify(db);
 	} catch (e) {
 		db.close();
 		rmSync(tmp, { force: true });
@@ -158,7 +185,11 @@ async function commit(entries) {
 	renameSync(tmp, DB_PATH);
 }
 
-/** --check: Drive answers "no access" with an empty list, so say which case this is. */
+/**
+ * --check: Drive answers "no access" with an empty list, so say which case this is.
+ * @param {string} token
+ * @param {string} email
+ */
 async function check(token, email) {
 	const auth = { headers: { authorization: `Bearer ${token}` } };
 	console.log(`signed in as ${email}`);
@@ -213,7 +244,7 @@ async function main() {
 	let failed = 0;
 	for (const f of changed) {
 		try {
-			const parsed = parseBriefing(await download(token, f), NAME.exec(f.name)[1]);
+			const parsed = parseBriefing(await download(token, f), NAME.exec(f.name)?.[1]);
 			entries.push({ parsed, file: { name: f.name, id: f.id, md5: f.md5Checksum } });
 			console.log(`${f.name}: ok, ${parsed.items.length} items`);
 		} catch (e) {

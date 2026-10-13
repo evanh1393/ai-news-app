@@ -9,20 +9,37 @@ const OUTAGES = 'Outages';
 
 export class FormatError extends Error {}
 
-const fail = (msg) => {
-	throw new FormatError(msg);
-};
+/**
+ * @typedef {{ label: string, url: string }} ParsedLink
+ * @typedef {{ position: number, title: string, note_md: string | null }} ParsedSection
+ * @typedef {{ category: string, position: number, headline: string | null, body: string, body_md: string, is_outage: boolean, links: ParsedLink[] }} ParsedItem
+ * @typedef {{ date: string, title: string, coverage: string | null, intro_md: string | null, outage_alert: boolean }} ParsedHeader
+ * @typedef {{ briefing: ParsedHeader, sections: ParsedSection[], items: ParsedItem[] }} ParsedBriefing
+ */
 
-/** Check one line of inline markdown and return { text, links }: plain text for search, and the links. */
+/**
+ * @param {string} msg
+ * @returns {never}
+ */
+function fail(msg) {
+	throw new FormatError(msg);
+}
+
+/**
+ * Check one line of inline markdown and return { text, links }: plain text for search, and the links.
+ * @param {string} src
+ * @returns {{ text: string, links: ParsedLink[] }}
+ */
 export function checkInline(src) {
 	const tokens = inlineTokens(src);
 	const text = tokens.map((t) => t.text).join('');
 	// A leftover "](" means a link that didn't parse, or whose URL isn't plain https.
 	if (/\]\(/.test(text)) fail(`malformed or non-https link in: ${src}`);
-	const links = tokens.filter((t) => t.type === 'link').map((t) => ({ label: t.text, url: t.url }));
+	const links = tokens.flatMap((t) => (t.type === 'link' ? [{ label: t.text, url: t.url }] : []));
 	return { text: text.replace(/\s+/g, ' ').trim(), links };
 }
 
+/** @param {string[]} lines */
 const paragraphs = (lines) =>
 	lines
 		.join('\n')
@@ -30,33 +47,42 @@ const paragraphs = (lines) =>
 		.map((p) => p.replace(/\s*\n\s*/g, ' ').trim())
 		.filter(Boolean);
 
-/** Paragraphs as stored: checked, then joined by blank lines. null when there are none. */
+/**
+ * Paragraphs as stored: checked, then joined by blank lines. null when there are none.
+ * @param {string[]} lines
+ */
 function paragraphsMd(lines) {
 	const paras = paragraphs(lines);
 	paras.forEach(checkInline);
 	return paras.length ? paras.join('\n\n') : null;
 }
 
+/** @param {string[]} lines */
 function frontMatter(lines) {
 	if (lines[0] !== '---') fail('missing front matter');
 	const end = lines.indexOf('---', 1);
 	if (end < 0) fail('unterminated front matter');
+	/** @type {Partial<Record<'date' | 'title' | 'coverage' | 'outage_alert', string>>} */
 	const fm = {};
 	for (const line of lines.slice(1, end)) {
 		const m = /^(date|title|coverage|outage_alert):\s*(.*)$/.exec(line);
 		if (!m) fail(`unexpected front matter line: ${line}`);
-		fm[m[1]] = m[2].trim().replace(/^"(.*)"$/, '$1');
+		fm[/** @type {keyof typeof fm} */ (m[1])] = m[2].trim().replace(/^"(.*)"$/, '$1');
 	}
-	if (!/^\d{4}-\d{2}-\d{2}$/.test(fm.date ?? '') || Number.isNaN(Date.parse(fm.date))) fail('bad or missing date');
-	if (!fm.title) fail('missing title');
-	if (fm.outage_alert !== 'true' && fm.outage_alert !== 'false') fail('outage_alert must be true or false');
-	return { fm, rest: lines.slice(end + 1) };
+	const { date, title, coverage, outage_alert } = fm;
+	if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date))) fail('bad or missing date');
+	if (!title) fail('missing title');
+	if (outage_alert !== 'true' && outage_alert !== 'false') fail('outage_alert must be true or false');
+	return { fm: { date, title, coverage, outage_alert }, rest: lines.slice(end + 1) };
 }
 
 /**
  * Parse a briefing file. `expectDate` (from the file name) must match the front matter date.
  * Returns plain rows ready for the database; positions follow what the app expects
  * (outage item at 0, other items numbered 1..n across the whole briefing).
+ * @param {string} source
+ * @param {string} [expectDate]
+ * @returns {ParsedBriefing}
  */
 export function parseBriefing(source, expectDate) {
 	if (Buffer.byteLength(source) > MAX_BYTES) fail('file too large');
@@ -64,16 +90,20 @@ export function parseBriefing(source, expectDate) {
 	const { fm, rest } = frontMatter(lines);
 	if (expectDate && fm.date !== expectDate) fail(`front matter date ${fm.date} doesn't match file name ${expectDate}`);
 
+	/** @type {string[]} */
 	const intro = [];
+	/** @type {{ title: string, note: string[], bullets: string[] }[]} */
 	const sections = [];
+	/** @type {(typeof sections)[number] | undefined} */
 	let cur;
 	for (const raw of rest) {
 		const line = raw.trimEnd();
 		if (/^```|^\s*\|/.test(line)) fail(`code blocks and tables aren't allowed: ${line}`);
 		const h = /^##\s+(.+)$/.exec(line);
 		if (h) {
-			cur = { title: h[1].trim(), note: [], bullets: [] };
-			if (sections.some((s) => s.title === cur.title)) fail(`duplicate section: ${cur.title}`);
+			const title = h[1].trim();
+			if (sections.some((s) => s.title === title)) fail(`duplicate section: ${title}`);
+			cur = { title, note: [], bullets: [] };
 			sections.push(cur);
 		} else if (/^#/.test(line)) {
 			fail(`unexpected heading: ${line}`);
@@ -91,6 +121,7 @@ export function parseBriefing(source, expectDate) {
 	if (!sections.length || sections[0].title !== OUTAGES) fail('"## Outages" must be the first section');
 	if (sections.length < 2) fail('no news sections');
 
+	/** @type {ParsedItem[]} */
 	const items = [];
 	let pos = 0;
 	const out = sections.map((s, i) => {

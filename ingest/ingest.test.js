@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import Database from 'better-sqlite3';
 import { inlineTokens } from '../src/lib/inline-md.js';
-import { migrate, migrations, openWriter } from './apply.js';
+import { getTableConfig } from 'drizzle-orm/sqlite-core';
+import * as schema from '../src/lib/server/schema.ts';
+import { migrate, migrations, openWriter, verify } from './apply.js';
 import { FormatError, checkInline, parseBriefing } from './briefing-md.js';
 
 const SAMPLE = `---
@@ -28,6 +30,13 @@ One note.
 - **Startup raises $1B** — Series C. [Wire](https://wire.example.com/s)
 `;
 
+/**
+ * The first column of the first row.
+ * @param {import('better-sqlite3').Database} db
+ * @param {string} sql
+ */
+const scalar = (db, sql) => db.prepare(sql).pluck().get();
+
 /** A database built from ingest/migrations. */
 function fresh() {
 	const db = new Database(':memory:');
@@ -35,6 +44,10 @@ function fresh() {
 	return db;
 }
 
+/**
+ * @param {string} src
+ * @param {RegExp} re
+ */
 const rejects = (src, re) => assert.throws(() => parseBriefing(src, '2026-10-13'), (e) => e instanceof FormatError && re.test(e.message));
 
 test('parses the sample into rows', () => {
@@ -105,18 +118,17 @@ test('ingest replaces a day and keeps search in sync', () => {
 	w.applyAll([{ parsed: p, file }], '2026-10-13T11:40:00.000Z');
 	w.applyAll([{ parsed: p, file: { ...file, md5: 'bbb' } }], '2026-10-13T12:10:00.000Z');
 
-	assert.equal(db.prepare('SELECT COUNT(*) n FROM items').get().n, 4);
-	assert.equal(db.prepare('SELECT COUNT(*) n FROM sections').get().n, 3);
-	assert.equal(db.prepare('SELECT COUNT(*) n FROM item_links').get().n, 4);
-	assert.equal(db.prepare("SELECT value FROM meta WHERE key = 'ingested_at'").get().value, '2026-10-13T12:10:00.000Z');
+	assert.equal(scalar(db, 'SELECT COUNT(*) n FROM items'), 4);
+	assert.equal(scalar(db, 'SELECT COUNT(*) n FROM sections'), 3);
+	assert.equal(scalar(db, 'SELECT COUNT(*) n FROM item_links'), 4);
+	assert.equal(scalar(db, "SELECT value FROM meta WHERE key = 'ingested_at'"), '2026-10-13T12:10:00.000Z');
 	assert.deepEqual([...w.ingested()], [['briefing-2026-10-13.md', 'bbb']]);
 	const hits = db
 		.prepare("SELECT i.headline FROM items_fts f JOIN items i ON i.id = f.rowid WHERE items_fts MATCH 'cheaper'")
 		.all();
 	assert.deepEqual(hits, [{ headline: 'Model X ships' }]);
-	assert.equal(db.prepare("SELECT COUNT(*) n FROM items_fts WHERE items_fts MATCH 'weights'").get().n, 1);
-	// Throws if the index has drifted from items.
-	db.prepare("INSERT INTO items_fts(items_fts) VALUES ('integrity-check')").run();
+	assert.equal(scalar(db, "SELECT COUNT(*) n FROM items_fts WHERE items_fts MATCH 'weights'"), 1);
+	verify(db);
 });
 
 test('a failure rolls back the whole batch', () => {
@@ -124,13 +136,14 @@ test('a failure rolls back the whole batch', () => {
 	const w = openWriter(db);
 	const good = { parsed: parseBriefing(SAMPLE, '2026-10-13'), file: { name: 'a', id: 'a', md5: 'a' } };
 	const bad = { parsed: { ...good.parsed, briefing: { ...good.parsed.briefing, date: '2026-10-14', title: null } }, file: { name: 'b', id: 'b', md5: 'b' } };
+	// @ts-expect-error a row the database rejects (title is NOT NULL)
 	assert.throws(() => w.applyAll([good, bad]));
-	assert.equal(db.prepare('SELECT COUNT(*) n FROM briefings').get().n, 0);
-	assert.equal(db.prepare('SELECT COUNT(*) n FROM drive_files').get().n, 0);
+	assert.equal(scalar(db, 'SELECT COUNT(*) n FROM briefings'), 0);
+	assert.equal(scalar(db, 'SELECT COUNT(*) n FROM drive_files'), 0);
 });
 
 test('migrations run once, in order, and record the version', () => {
-	const latest = migrations().at(-1).version;
+	const latest = migrations().length;
 	const db = fresh();
 	assert.equal(db.pragma('user_version', { simple: true }), latest);
 	assert.deepEqual(migrate(db), []);
@@ -141,7 +154,7 @@ test('adopts a database from before migrations at version 1', () => {
 	db.exec(migrations()[0].sql);
 	db.exec("INSERT INTO briefings (date, title, created_at) VALUES ('2026-10-12', 'Kept', 't')");
 	assert.deepEqual(migrate(db), migrations().slice(1).map((m) => m.name));
-	assert.equal(db.prepare('SELECT title FROM briefings').get().title, 'Kept');
+	assert.equal(scalar(db, 'SELECT title FROM briefings'), 'Kept');
 });
 
 test('refuses to adopt the old *_html schema', () => {
@@ -149,4 +162,25 @@ test('refuses to adopt the old *_html schema', () => {
 	db.exec('CREATE TABLE briefings (date TEXT PRIMARY KEY); CREATE TABLE items (id INTEGER PRIMARY KEY, body_html TEXT);');
 	assert.throws(() => migrate(db), /predates the markdown schema/);
 	assert.equal(db.pragma('user_version', { simple: true }), 0);
+});
+
+test('verify catches a search index out of step with items', () => {
+	const db = fresh();
+	openWriter(db).applyAll([{ parsed: parseBriefing(SAMPLE, '2026-10-13'), file: { name: 'a', id: 'a', md5: 'a' } }]);
+	verify(db);
+	db.exec("UPDATE items SET body = 'changed behind the index' WHERE position = 1");
+	assert.throws(() => verify(db));
+});
+
+test('src/lib/server/schema.ts matches the migrated database', () => {
+	const db = fresh();
+	for (const table of Object.values(schema).map((t) => getTableConfig(/** @type {any} */ (t)))) {
+		const cols = /** @type {{ name: string, type: string, notnull: number, pk: number }[]} */ (
+			db.prepare('SELECT name, type, "notnull", pk FROM pragma_table_info(?)').all(table.name)
+		);
+		assert.ok(cols.length, `${table.name} isn't in the migrations`);
+		const actual = cols.map((c) => [c.name, c.type.toLowerCase(), !!c.notnull || c.pk > 0]).sort();
+		const expected = table.columns.map((c) => [c.name, c.getSQLType(), c.notNull]).sort();
+		assert.deepEqual(expected, actual, `${table.name}: schema.ts columns (name, type, not null) vs the database`);
+	}
 });
