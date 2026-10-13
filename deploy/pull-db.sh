@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Copy CT 101's briefing.db to data/briefing.db for `npm run dev`.
+# Copy the droplet's briefing.db to data/briefing.db for `npm run dev`.
 # --if-missing: do nothing when a local copy already exists (used by `predev`).
 # briefing-pull swaps the file in atomically and it has no WAL, so a plain read is consistent.
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
-host=ai-briefing
+host=${DEPLOY_HOST:-ai-briefing-do}
 remote=/opt/ai-briefing/data/briefing.db
 local_db="$root/data/briefing.db"
 

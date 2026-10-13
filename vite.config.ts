@@ -10,8 +10,8 @@ export default defineConfig({
 		sveltekit({
 			preprocess: vitePreprocess(),
 			adapter: adapter(),
-			// Public origin behind tailscale serve/funnel and Caddy; used for CSRF checks.
-			paths: { origin: 'https://ai-briefing.taila927a9.ts.net' },
+			// Public origin behind Cloudflare and Caddy; used for CSRF checks.
+			paths: { origin: 'https://eh-ai-blast.app' },
 			// Briefing text comes from an LLM summarizing web pages. It's stored as markdown and rendered as
 			// Svelte text (no {@html}); this is the backstop: only nonced scripts run, nothing can phone out.
 			csp: {

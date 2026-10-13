@@ -1,4 +1,5 @@
-# PRs get a type check and build. Pushes to main (PR merges) also deploy to CT 101 over the tailnet.
+# PRs and pushes to main get migration checks, a type check, tests and a build. Deploys are manual
+# (`npm run deploy` from a laptop), since the droplet only takes SSH from the home IP.
 name: ci
 
 on:
@@ -7,8 +8,8 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Actions are pinned to commit SHAs, not tags: the deploy job can SSH to CT 101 and sudo, so a moved
-# tag would be root there. Dependabot bumps the SHA and the version comment together.
+# Actions are pinned to commit SHAs, not tags, so a moved tag can't change what runs. Dependabot bumps
+# the SHA and the version comment together.
 permissions:
   contents: read
 
@@ -35,51 +36,3 @@ jobs:
       # Includes building a database from every migration, verify(), and schema.ts matching it.
       - run: npm test
       - run: npm run build
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        with:
-          name: build
-          path: build/
-          retention-days: 1
-
-  deploy:
-    needs: check
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    environment: production
-    concurrency:
-      group: deploy-ct101
-      cancel-in-progress: false
-    # Dependency code (install scripts, Vite plugins) only runs in the check job, on a runner that
-    # never joins the tailnet. This job runs no npm code: it downloads build/ and ships it.
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: build
-          path: build/
-
-      # Joins the tailnet as an ephemeral tag:ci node. The ACL lets tag:ci SSH to tag:briefing as evanh.
-      - uses: tailscale/github-action@6cae46e2d796f265265cfcf628b72a32b4d7cade # v3.3.0
-        with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:ci
-
-      # deploy.sh talks to the "ai-briefing" host alias, same as from a laptop.
-      - name: Configure SSH
-        run: |
-          mkdir -p ~/.ssh
-          cp deploy/known_hosts ~/.ssh/known_hosts
-          cat > ~/.ssh/config <<'EOF'
-          Host ai-briefing
-            HostName ai-briefing.taila927a9.ts.net
-            User evanh
-            StrictHostKeyChecking yes
-          EOF
-
-      - run: bash deploy/deploy.sh
-        env:
-          PREBUILT: 1

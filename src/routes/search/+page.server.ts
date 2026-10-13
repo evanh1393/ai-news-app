@@ -2,7 +2,8 @@ import { error } from '@sveltejs/kit';
 import { search } from '#lib/server/db.js';
 import type { PageServerLoad } from './$types';
 
-// The site is public (Tailscale Funnel), so bound what one request can make FTS do.
+// The site is public, so bound what one request can make FTS do. Cloudflare also rate-limits this
+// route per IP (infra/cloudflare.tf).
 const MAX_CHARS = 200;
 const MAX_WORDS = 8;
 

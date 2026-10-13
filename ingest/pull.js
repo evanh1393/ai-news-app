@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Pulls Grok Bot's briefing-YYYY-MM-DD.md files from the "AI Briefings" Drive folder into briefing.db.
-// Runs on CT 101 as briefing-pull (deploy/briefing-pull.service). Nothing connects in: this reaches
+// Runs on the droplet as briefing-pull (deploy/briefing-pull.service). Nothing connects in: this reaches
 // out to Google with a service account that can only read that one folder.
 //
 //   node ingest/pull.js --check      list the folder; touches no database
