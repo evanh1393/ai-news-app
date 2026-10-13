@@ -155,7 +155,12 @@ const SOURCES_SAMPLE = `# Monitoring Sources
 
 Last updated: 2026-10-13.
 
+- Notes to the bot, not shown.
+
 ## 1. Web search
+
+Rule: newest first,
+then by source.
 
 - \`AI news <Month DD YYYY>\`
 
@@ -173,10 +178,11 @@ Last updated: 2026-10-13.
 
 test('parses sources.md into rows', () => {
 	assert.deepEqual(parseSources(SOURCES_SAMPLE), [
-		{ grp: '1. Web search', subgroup: null, position: 1, value_md: '`AI news <Month DD YYYY>`' },
-		{ grp: '2. X', subgroup: 'search_news', position: 2, value_md: '`AI`' },
-		{ grp: '2. X', subgroup: 'search_news', position: 3, value_md: '`outage` (filter for AI/cloud)' },
-		{ grp: '2. X', subgroup: 'Accounts watched', position: 4, value_md: 'Labs: @OpenAI, @AnthropicAI' }
+		{ grp: '1. Web search', subgroup: null, position: 1, value_md: 'Rule: newest first, then by source.' },
+		{ grp: '1. Web search', subgroup: null, position: 2, value_md: '`AI news <Month DD YYYY>`' },
+		{ grp: '2. X', subgroup: 'search_news', position: 3, value_md: '`AI`' },
+		{ grp: '2. X', subgroup: 'search_news', position: 4, value_md: '`outage` (filter for AI/cloud)' },
+		{ grp: '2. X', subgroup: 'Accounts watched', position: 5, value_md: 'Labs: @OpenAI, @AnthropicAI' }
 	]);
 });
 
@@ -186,10 +192,10 @@ test('rejects off-format sources.md', () => {
 	 * @param {RegExp} re
 	 */
 	const bad = (src, re) => assert.throws(() => parseSources(src), (e) => e instanceof FormatError && re.test(e.message));
-	bad('- orphan\n## G\n- a\n', /before any ## group/);
 	bad('### Sub\n## G\n- a\n', /before any ## group/);
 	bad('## G\n- a\n## G\n- b\n', /duplicate group/);
-	bad('## G\n- a\nwrapped line\n', /must be "- " lines/);
+	bad('## G\n- a\nwrapped line\n', /one line/);
+	bad('## G\n- a\n\nlater paragraph\n', /one line/);
 	bad('## G\n- [x](javascript:alert(1))\n', /non-https/);
 	bad('## G\n', /no sources/);
 	bad(SOURCES_SAMPLE + '\n# Again\n', /first line/);
@@ -202,7 +208,7 @@ test('sources.md replaces the whole sources table', () => {
 	const file = { name: 'sources.md', id: 's', md5: 'a' };
 	db.exec("INSERT INTO sources (grp, position, value_md) VALUES ('Old', 1, 'gone')");
 	w.applyAll([{ sources: parseSources(SOURCES_SAMPLE), file }]);
-	assert.deepEqual(db.prepare('SELECT grp FROM sources ORDER BY position').pluck().all(), ['1. Web search', '2. X', '2. X', '2. X']);
+	assert.deepEqual(db.prepare('SELECT grp FROM sources ORDER BY position').pluck().all(), ['1. Web search', '1. Web search', '2. X', '2. X', '2. X']);
 	assert.deepEqual([...w.ingested()], [['sources.md', 'a']]);
 	verify(db);
 });
