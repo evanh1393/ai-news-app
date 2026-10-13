@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-Production on CT 101 is Node 22. `npm run dev` reads a database only if `BRIEFING_DB` points at one.
+Production on CT 101 is Node 22. `npm run dev` reads `data/briefing.db` (gitignored), or whatever `BRIEFING_DB` points at. If that file is missing, `npm run dev` first pulls a copy from CT 101 over SSH. Run `npm run db:pull` to refresh it. The data dir is `newsbot`-only, so the pull reads it with `sudo` as `evanh`.
 
 ## Deploy
 

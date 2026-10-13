@@ -4,12 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite dev",
+    "predev": "bash deploy/pull-db.sh --if-missing",
+    "dev": "BRIEFING_DB=${BRIEFING_DB:-data/briefing.db} vite dev",
     "build": "vite build",
     "preview": "vite preview",
     "start": "node build",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "deploy": "bash deploy/deploy.sh"
+    "deploy": "bash deploy/deploy.sh",
+    "db:pull": "bash deploy/pull-db.sh"
   },
   "devDependencies": {
     "@fontsource-variable/inter": "^5.3.0",
