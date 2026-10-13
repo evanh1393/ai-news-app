@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import { refreshAll } from '$app/navigation';
 	import { fmtTime } from '#lib/format.js';
+	import { OUTAGES_MAINTENANCE } from '#lib/outages.js';
 
 	let { data, children } = $props();
 
@@ -53,7 +54,11 @@
 							aria-current={isActive(n.href) ? 'page' : undefined}
 						>
 							{#if n.href === '/outages'}
-								<span class="status" class:status-success={!data.active} class:status-error={data.active} class:animate-pulse={data.active}></span>
+								{#if OUTAGES_MAINTENANCE}
+									<span class="status status-warning" title="Outage checks are under maintenance"></span>
+								{:else}
+									<span class="status" class:status-success={!data.active} class:status-error={data.active} class:animate-pulse={data.active}></span>
+								{/if}
 							{/if}{n.label}
 						</a>
 					</li>
