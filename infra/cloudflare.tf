@@ -1,5 +1,6 @@
 # Public traffic: eh-ai-blast.app -> Cloudflare -> tunnel -> cloudflared on the droplet -> Caddy :8080.
-# cloudflared connects out, so the droplet takes no inbound HTTP(S).
+# CI deploys: ssh.eh-ai-blast.app -> Access (service token) -> tunnel -> sshd on 127.0.0.1:22.
+# cloudflared connects out, so the droplet takes no inbound HTTP(S), and SSH only from home.
 
 locals {
   cf_account_id = "beac23fc2ec67f70ff216c9245876934"
@@ -29,6 +30,12 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "ai_briefing" {
         hostname = local.domain
         # 127.0.0.1, not localhost: Caddy binds IPv4 only, and localhost can resolve to ::1.
         service = "http://127.0.0.1:8080"
+      },
+      {
+        # CI deploys over SSH through the tunnel, behind the Access app below. Port 22 stays closed
+        # to the internet.
+        hostname = "ssh.${local.domain}"
+        service  = "ssh://127.0.0.1:22"
       },
       {
         service = "http_status:404"
@@ -73,5 +80,46 @@ resource "cloudflare_ruleset" "rate_limit" {
         mitigation_timeout  = 10
       }
     },
+  ]
+}
+
+resource "cloudflare_dns_record" "ssh" {
+  zone_id = data.cloudflare_zone.site.zone_id
+  name    = "ssh.${local.domain}"
+  type    = "CNAME"
+  content = "${cloudflare_zero_trust_tunnel_cloudflared.ai_briefing.id}.cfargotunnel.com"
+  proxied = true
+  ttl     = 1
+}
+
+# GitHub Actions' credential for ssh.eh-ai-blast.app. Its client ID and secret are the repo secrets
+# CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET (`terraform output -raw ci_access_client_secret`).
+# Valid for a year; `terraform apply -replace=cloudflare_zero_trust_access_service_token.ci` rotates it.
+resource "cloudflare_zero_trust_access_service_token" "ci" {
+  account_id = local.cf_account_id
+  name       = "ai-briefing CI deploy"
+  duration   = "8760h"
+}
+
+resource "cloudflare_zero_trust_access_policy" "ci" {
+  account_id = local.cf_account_id
+  name       = "ai-briefing CI deploy"
+  # non_identity: a service token, not a person logging in.
+  decision = "non_identity"
+  include = [
+    { service_token = { token_id = cloudflare_zero_trust_access_service_token.ci.id } },
+  ]
+}
+
+# Nothing reaches the SSH hostname without that service token. The SSH key is a second check behind it.
+resource "cloudflare_zero_trust_access_application" "ssh" {
+  account_id           = local.cf_account_id
+  name                 = "ai-briefing SSH"
+  domain               = "ssh.${local.domain}"
+  type                 = "self_hosted"
+  session_duration     = "1h"
+  app_launcher_visible = false
+  policies = [
+    { id = cloudflare_zero_trust_access_policy.ci.id, precedence = 1 },
   ]
 }

@@ -1,5 +1,6 @@
-# PRs and pushes to main get migration checks, a type check, tests and a build. Deploys are manual
-# (`npm run deploy` from a laptop), since the droplet only takes SSH from the home IP.
+# PRs get migration checks, a type check, tests and a build. Pushes to main (PR merges) also deploy to
+# the droplet: SSH through the Cloudflare Tunnel (ssh.eh-ai-blast.app), past a Cloudflare Access
+# service token. The droplet's port 22 stays closed to everyone but the home IP.
 name: ci
 
 on:
@@ -8,8 +9,8 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Actions are pinned to commit SHAs, not tags, so a moved tag can't change what runs. Dependabot bumps
-# the SHA and the version comment together.
+# Actions are pinned to commit SHAs, not tags: the deploy job can SSH to the droplet and sudo, so a
+# moved tag would be root there. Dependabot bumps the SHA and the version comment together.
 permissions:
   contents: read
 
@@ -36,3 +37,63 @@ jobs:
       # Includes building a database from every migration, verify(), and schema.ts matching it.
       - run: npm test
       - run: npm run build
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        with:
+          name: build
+          path: build/
+          retention-days: 1
+
+  deploy:
+    needs: check
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: deploy-droplet
+      cancel-in-progress: false
+    # Dependency code (install scripts, Vite plugins) only runs in the check job, which has no deploy
+    # credentials. This job runs no npm code: it downloads build/ and ships it.
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: build
+          path: build/
+
+      # Pinned binary, checked against the release's published SHA-256.
+      - name: Install cloudflared
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/cloudflared" \
+            https://github.com/cloudflare/cloudflared/releases/download/2026.10.0/cloudflared-linux-amd64
+          echo "d33ff2d14475178d2012c2c56beba87389ac5ded27649519f198a7d3134a99db  $RUNNER_TEMP/cloudflared" | sha256sum -c -
+          sudo install -m 755 "$RUNNER_TEMP/cloudflared" /usr/local/bin/cloudflared
+
+      # deploy.sh talks to the "ai-briefing-do" host alias, same as from a laptop. cloudflared reads the
+      # Access service token from TUNNEL_SERVICE_TOKEN_ID/SECRET, which ssh passes through to it.
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          cp deploy/known_hosts ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<'EOF'
+          Host ai-briefing-do
+            HostName ssh.eh-ai-blast.app
+            User evanh
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            ProxyCommand /usr/local/bin/cloudflared access ssh --hostname %h
+          EOF
+
+      - run: bash deploy/deploy.sh
+        env:
+          PREBUILT: 1
+          TUNNEL_SERVICE_TOKEN_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          TUNNEL_SERVICE_TOKEN_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}

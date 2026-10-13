@@ -23,11 +23,13 @@ That builds here with Node 22, copies the app and `deploy/Caddyfile` to the drop
 
 ## CI/CD
 
-`.github/workflows/deploy.yml` checks migrations, type-checks (including the plain JS in `ingest/`, through `checkJs` and JSDoc types), tests and builds every PR and push to `main`. It doesn't deploy: the droplet only accepts SSH from the home IP, so run `npm run deploy` after merging.
+`.github/workflows/deploy.yml` checks migrations, type-checks (including the plain JS in `ingest/`, through `checkJs` and JSDoc types), tests and builds every PR and push to `main`. A push to `main` (a merged PR) also deploys: the deploy job SSHes to `ssh.eh-ai-blast.app`, which Cloudflare Access only lets through with the CI service token, and the Cloudflare Tunnel delivers it to sshd on the droplet's `127.0.0.1:22`. It logs in as `evanh` with a CI-only key (`deploy/ci_authorized_key`: usable only from 127.0.0.1, i.e. through the tunnel, with no forwarding) and runs `npm run deploy`. `deploy/known_hosts` pins the droplet's host key. The droplet's public port 22 stays limited to the home IP.
+
+Repo secrets: `DEPLOY_SSH_KEY` (the CI key's private half; its only copy), and `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET` (`terraform output` in `infra/`). To rotate the key, generate a new one, update `deploy/ci_authorized_key` and the secret, and deploy from a laptop once.
 
 ## Hosting
 
-Visitors reach `eh-ai-blast.app` through Cloudflare, which forwards over a Cloudflare Tunnel to `cloudflared` on the droplet, then to Caddy on `127.0.0.1:8080` and the app on `:3000`. The tunnel is an outbound connection, so the droplet takes no inbound web traffic. Its only open port is SSH, which the DigitalOcean firewall (`infra/main.tf`) limits to the home IP; root login and passwords are off. Cloudflare rate-limits `/search` per IP (`infra/cloudflare.tf`).
+Visitors reach `eh-ai-blast.app` through Cloudflare, which forwards over a Cloudflare Tunnel to `cloudflared` on the droplet, then to Caddy on `127.0.0.1:8080` and the app on `:3000`. The tunnel is an outbound connection, so the droplet takes no inbound web traffic. Its only open port is SSH, which the DigitalOcean firewall (`infra/main.tf`) limits to the home IP; root login and passwords are off. CI reaches SSH through the tunnel instead (see CI/CD). Cloudflare rate-limits `/search` per IP (`infra/cloudflare.tf`).
 
 `deploy/provision.sh` set up the droplet once (packages, users, directories, `ufw`, sshd). After it, `cloudflared service install` took the tunnel token from `terraform output -raw tunnel_token`, and `/etc/ai-briefing/drive-key.json` was copied over by hand.
 
