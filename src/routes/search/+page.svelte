@@ -11,7 +11,7 @@
 
 <h2 class="mb-8 text-4xl leading-none sm:text-5xl">Search</h2>
 <form method="GET" class="mb-6 flex gap-2" data-sveltekit-reset="false">
-	<input class="input input-lg flex-1 bg-base-200" name="q" type="search" value={data.q} placeholder="e.g. nvidia, drex, outage" autofocus />
+	<input class="input input-lg flex-1 bg-base-200" name="q" type="search" maxlength="200" value={data.q} placeholder="e.g. nvidia, drex, outage" autofocus />
 	<button class="btn btn-primary btn-lg px-6">Search</button>
 </form>
 

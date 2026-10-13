@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import Database from 'better-sqlite3';
-import { inlineTokens } from '../src/lib/inline-md.js';
+import { inlineTokens, linkHost } from '../src/lib/inline-md.js';
 import { getTableConfig } from 'drizzle-orm/sqlite-core';
 import * as schema from '../src/lib/server/schema.ts';
 import { migrate, migrations, openWriter, verify } from './apply.js';
@@ -96,6 +96,14 @@ test('links only render for plain https URLs', () => {
 		assert.deepEqual(inlineTokens(`[x](${bad})`), [{ type: 'text', text: `[x](${bad})` }]);
 		assert.throws(() => checkInline(`[x](${bad})`), FormatError);
 	}
+});
+
+test('links show their real host unless the label is it', () => {
+	assert.equal(linkHost('Vendor blog', 'https://www.example.com/x'), 'example.com');
+	assert.equal(linkHost('google.com', 'https://evil.example/'), 'evil.example');
+	assert.equal(linkHost('google.com.evil.example', 'https://evil.example/'), 'evil.example');
+	assert.equal(linkHost('https://status.x.ai/', 'https://status.x.ai/'), null);
+	assert.equal(linkHost('www.Example.com/docs', 'https://example.com/docs'), null);
 });
 
 test('rejects off-format files', () => {

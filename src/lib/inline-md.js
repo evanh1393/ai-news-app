@@ -49,3 +49,15 @@ export function inlineTokens(src) {
 	text(src.slice(last));
 	return out;
 }
+
+/**
+ * The host to show beside a link, so its label can't pass for another site (briefing text comes from
+ * an LLM reading the web). null when the label already is that host or a URL on it.
+ * @param {string} label
+ * @param {string} url an https URL from inlineTokens
+ */
+export function linkHost(label, url) {
+	const host = new URL(url).hostname.replace(/^www\./, '');
+	const shown = label.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '');
+	return shown === host || shown.startsWith(`${host}/`) ? null : host;
+}
