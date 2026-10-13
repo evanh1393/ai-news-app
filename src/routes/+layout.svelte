@@ -2,6 +2,7 @@
 	import '../app.css';
 	import { page } from '$app/state';
 	import { refreshAll } from '$app/navigation';
+	import { version } from '$app/env';
 	import { fmtTime } from '#lib/format.js';
 	import { OUTAGES_MAINTENANCE } from '#lib/outages.js';
 
@@ -82,6 +83,16 @@
 		<p>
 			<a class="text-base-content/70 transition-colors hover:text-base-content" href="/">AI Briefing</a> · curated by AI, about AI{#if data.ingestedAt}
 				· updated {fmtTime(data.ingestedAt)}{/if}
+			·
+			{#if /^[0-9a-f]{7}$/.test(version)}
+				<a
+					class="font-mono transition-colors hover:text-base-content"
+					href="https://github.com/evanh1393/ai-news-app/commit/{version}"
+					title="The commit this site was built from">{version}</a
+				>
+			{:else}
+				<span class="font-mono" title="The commit this site was built from">{version}</span>
+			{/if}
 		</p>
 		<ul class="flex flex-wrap gap-x-5 gap-y-1">
 			{#each nav as n (n.href)}

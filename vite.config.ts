@@ -2,7 +2,19 @@ import adapter from '@sveltejs/adapter-node';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
+import { execSync } from 'node:child_process';
 import { defineConfig } from 'vite';
+
+// The commit this build came from, shown in the site footer so a deploy is easy to confirm.
+// "-dirty" marks a laptop build with uncommitted changes.
+function gitVersion() {
+	try {
+		const git = (args: string) => execSync(`git ${args}`, { encoding: 'utf8' }).trim();
+		return git('rev-parse --short=7 HEAD') + (git('status --porcelain') ? '-dirty' : '');
+	} catch {
+		return 'unknown';
+	}
+}
 
 export default defineConfig({
 	plugins: [
@@ -10,6 +22,8 @@ export default defineConfig({
 		sveltekit({
 			preprocess: vitePreprocess(),
 			adapter: adapter(),
+			// Also what /_app/version.json reports and what $app/env's `version` is.
+			version: { name: gitVersion() },
 			// Public origin behind Cloudflare and Caddy; used for CSRF checks.
 			paths: { origin: 'https://eh-ai-blast.app' },
 			// Briefing text comes from an LLM summarizing web pages. It's stored as markdown and rendered as
