@@ -7,3 +7,5 @@ node_modules
 !.env.example
 # Local copy of CT 101's briefing.db for `npm run dev`.
 /data
+# Claude Code worktrees.
+/.claude/worktrees
