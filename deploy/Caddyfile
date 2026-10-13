@@ -1,4 +1,4 @@
-# AI Briefing: tailscale serve (HTTPS) -> Caddy :8080 (HTTP, localhost only) -> SvelteKit :3000
+# AI Briefing: tailscale funnel (public HTTPS) -> Caddy :8080 (HTTP, localhost only) -> SvelteKit :3000
 {
 	auto_https off
 	admin localhost:2019
@@ -7,5 +7,14 @@
 http://:8080 {
 	bind 127.0.0.1
 	encode zstd gzip
+	# The app sets the CSP (vite.config.ts). These cover the rest. Funnel only serves HTTPS, so HSTS is safe.
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		Cross-Origin-Opener-Policy "same-origin"
+		-Server
+	}
 	reverse_proxy 127.0.0.1:3000
 }
