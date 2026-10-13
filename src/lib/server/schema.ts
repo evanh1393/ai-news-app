@@ -1,5 +1,6 @@
-// Drizzle tables for /opt/ai-briefing/data/briefing.db. Grok Bot owns the schema (see the README on
-// CT 101); this file only describes it for typed reads. Never generate or run migrations against it.
+// Drizzle tables for /opt/ai-briefing/data/briefing.db. Grok Bot created the schema; briefing-pull now
+// writes it and ingest/apply.js migrates it. This file only describes it for typed reads, so never
+// generate or run Drizzle migrations against it. *_md columns hold inline markdown (src/lib/inline-md.js).
 // items_fts (FTS5) isn't modelled; search() queries it with raw SQL.
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
@@ -7,7 +8,7 @@ export const briefings = sqliteTable('briefings', {
 	date: text('date').primaryKey(),
 	title: text('title').notNull(),
 	coverage: text('coverage'),
-	intro_html: text('intro_html'),
+	intro_md: text('intro_md'),
 	outage_alert: integer('outage_alert', { mode: 'boolean' }).notNull(),
 	created_at: text('created_at').notNull()
 });
@@ -16,7 +17,7 @@ export const sections = sqliteTable('sections', {
 	briefing_date: text('briefing_date').notNull(),
 	position: integer('position').notNull(),
 	title: text('title').notNull(),
-	note_html: text('note_html')
+	note_md: text('note_md')
 });
 
 export const items = sqliteTable('items', {
@@ -26,7 +27,7 @@ export const items = sqliteTable('items', {
 	position: integer('position').notNull(),
 	headline: text('headline'),
 	body: text('body').notNull(),
-	body_html: text('body_html').notNull(),
+	body_md: text('body_md').notNull(),
 	is_outage: integer('is_outage', { mode: 'boolean' }).notNull()
 });
 
@@ -48,7 +49,7 @@ export const sources = sqliteTable('sources', {
 	grp: text('grp').notNull(),
 	subgroup: text('subgroup'),
 	position: integer('position').notNull(),
-	value: text('value').notNull(),
+	value_md: text('value_md').notNull(),
 	note: text('note')
 });
 

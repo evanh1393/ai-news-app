@@ -1,5 +1,5 @@
 // Read-only access to the briefing database through Drizzle.
-// Grok Bot replaces the file atomically (new inode) every ~30 min, so we open a fresh
+// briefing-pull replaces the file atomically (new inode) when it ingests, so we open a fresh
 // connection per query batch. Opening SQLite read-only is cheap at this size.
 import Database from 'better-sqlite3';
 import { asc, count, desc, eq, getTableColumns, like, or, sql } from 'drizzle-orm';

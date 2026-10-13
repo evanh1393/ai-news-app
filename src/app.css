@@ -96,7 +96,7 @@
 }
 
 @layer components {
-	/* A story's body_html leads with its headline in <strong>; show it as the card title. */
+	/* A story's body leads with its headline in <strong>; show it as the card title. */
 	.story .prose > strong:first-child {
 		display: block;
 		margin-bottom: 0.5rem;

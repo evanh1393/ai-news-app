@@ -1,4 +1,6 @@
 <script lang="ts">
+	import Markdown from '#lib/components/Markdown.svelte';
+
 	let { data } = $props();
 </script>
 
@@ -19,7 +21,7 @@
 				{#each g.subs as sub, i (i)}
 					{#if sub.subgroup}<h4>{sub.subgroup}</h4>{/if}
 					<ul>
-						{#each sub.values as v, j (j)}<li>{@html v}</li>{/each}
+						{#each sub.values as v, j (j)}<li><Markdown md={v} /></li>{/each}
 					</ul>
 				{/each}
 			{/each}

@@ -9,7 +9,7 @@ export const load: PageServerLoad = () => {
 		if (g?.grp !== s.grp) groups.push((g = { grp: s.grp, subs: [] }));
 		let sub = g.subs.at(-1);
 		if (!sub || sub.subgroup !== s.subgroup) g.subs.push((sub = { subgroup: s.subgroup, values: [] }));
-		sub.values.push(s.value);
+		sub.values.push(s.value_md);
 	}
 	return { groups };
 };

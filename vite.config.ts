@@ -12,8 +12,8 @@ export default defineConfig({
 			adapter: adapter(),
 			// Public origin behind tailscale serve/funnel and Caddy; used for CSRF checks.
 			paths: { origin: 'https://ai-briefing.taila927a9.ts.net' },
-			// The *_html DB columns come from an LLM summarizing web pages and render via {@html}.
-			// Only nonced scripts run, so injected markup can't execute or phone out.
+			// Briefing text comes from an LLM summarizing web pages. It's stored as markdown and rendered as
+			// Svelte text (no {@html}); this is the backstop: only nonced scripts run, nothing can phone out.
 			csp: {
 				mode: 'nonce',
 				directives: {
