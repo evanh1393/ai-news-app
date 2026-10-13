@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Markdown from '#lib/components/Markdown.svelte';
 	import type { FullBriefing } from '#lib/server/db.js';
 
 	let { briefing }: { briefing: FullBriefing } = $props();
@@ -21,7 +22,7 @@
 			class="alert alert-soft mb-6 block rounded-md px-6 py-4 backdrop-blur-sm {briefing.outage_alert ? 'alert-error' : 'border-base-300/60 bg-base-200/50'}"
 		>
 			<b>{briefing.outage_alert ? '🚨 OUTAGE ALERT' : '✅ Outages'}:</b>
-			<span class="prose prose-sm max-w-none prose-a:text-primary [&_p]:inline">{@html briefing.outage.body_html}</span>
+			<span class="prose prose-sm max-w-none prose-a:text-primary [&_p]:inline"><Markdown md={briefing.outage.body_md} /></span>
 		</div>
 	{/if}
 
@@ -31,7 +32,7 @@
 				<h3 class="text-2xl leading-tight sm:text-3xl">{section.title}</h3>
 				<span class="text-sm text-base-content/50">{section.items.length} {section.items.length === 1 ? 'story' : 'stories'}</span>
 			</div>
-			{#if section.note_html}<div class="prose prose-sm mb-5 max-w-none text-base-content/60 prose-a:text-primary">{@html section.note_html}</div>{/if}
+			{#if section.note_md}<div class="prose prose-sm mb-5 max-w-none text-base-content/60 prose-a:text-primary"><Markdown md={section.note_md} paragraphs /></div>{/if}
 			<ol class="grid gap-4 md:grid-cols-2">
 				{#each section.items as item (item.id)}
 					<li
@@ -39,7 +40,7 @@
 						class="story flex scroll-mt-28 flex-col gap-3 rounded-md border border-base-300/60 bg-base-200/50 p-6 backdrop-blur-sm transition-colors hover:bg-base-200/80 target:border-primary"
 					>
 						<span class="text-sm text-base-content/40 tabular-nums">{String(item.position).padStart(2, '0')}</span>
-						<div class="prose prose-sm max-w-none sm:prose-base prose-a:text-primary">{@html item.body_html}</div>
+						<div class="prose prose-sm max-w-none sm:prose-base prose-a:text-primary"><Markdown md={item.body_md} /></div>
 					</li>
 				{/each}
 			</ol>

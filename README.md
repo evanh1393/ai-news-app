@@ -33,7 +33,9 @@ Repo secrets: `TS_OAUTH_CLIENT_ID` and `TS_OAUTH_SECRET`, from a Tailscale OAuth
 
 ## Briefing ingest (Drive pull)
 
-Grok Bot writes `briefing-YYYY-MM-DD.md` to the "AI Briefings" Google Drive folder. CT 101 pulls it: `briefing-pull.timer` runs `ingest/pull.js` as `briefing-pull` at 7:40 AM ET and hourly at :10. It authenticates with a service account (`/etc/ai-briefing/drive-key.json`) that has no project roles, only a Viewer share on that folder. New or changed files are validated strictly (`ingest/briefing-md.js`; off-format files are logged and skipped), rendered to HTML from escaped text so no raw HTML gets through, and upserted one date at a time into a copy of `briefing.db` that is then renamed into place (the previous file is kept as `briefing.db.prev`). The egress firewall limits `briefing-pull` to DNS and HTTPS.
+Grok Bot writes `briefing-YYYY-MM-DD.md` to the "AI Briefings" Google Drive folder. CT 101 pulls it: `briefing-pull.timer` runs `ingest/pull.js` as `briefing-pull` at 7:40 AM ET and hourly at :10. It authenticates with a service account (`/etc/ai-briefing/drive-key.json`) that has no project roles, only a Viewer share on that folder. New or changed files are validated strictly (`ingest/briefing-md.js`; off-format files are logged and skipped) and upserted one date at a time into a copy of `briefing.db` that is then renamed into place (the previous file is kept as `briefing.db.prev`). The egress firewall limits `briefing-pull` to DNS and HTTPS. `npm run deploy` also runs it once, before restarting the app.
+
+The database stores markdown (`*_md` columns), never HTML. The app renders it with `src/lib/inline-md.js` and `Markdown.svelte` as Svelte text: only links (plain `https` URLs), bold and code become markup, and there is no `{@html}`, so a bad row can look wrong but can't inject anything. The CSP in `vite.config.ts` is the backstop. `ingest/apply.js` owns the schema: the first pull after the markdown change migrated Grok Bot's `*_html` columns and re-ingested every day from Drive.
 
 ```sh
 sudo -u briefing-pull node ingest/pull.js --check     # list the folder, no DB access
@@ -43,4 +45,4 @@ journalctl -u briefing-pull                           # run history
 
 `npm test` covers the parser and the DB writes. Outage checks are paused (`src/lib/outages.ts`) until they have their own feed.
 
-Retired, to be removed: Grok Bot used to upload as `newsbot`, whose login shell is `deploy/briefing-upload` (installed to `/usr/local/sbin/briefing-upload` by `npm run deploy`). Whatever command it is sent, it only reads a gzipped tar of `briefing.db` and `README.md` from stdin and swaps them into `/opt/ai-briefing/data` and `/opt/ai-briefing/docs`. `newsbot` owns those two directories and nothing else.
+Grok Bot used to push a whole `briefing.db` over SSH as `newsbot`. That path is gone: `npm run deploy` removes its upload shell and locks the account.

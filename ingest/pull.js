@@ -15,7 +15,7 @@ import { createSign } from 'node:crypto';
 import { existsSync, linkSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import Database from 'better-sqlite3';
-import { openWriter } from './apply.js';
+import { needsMigration, openWriter, staleDates } from './apply.js';
 import { FormatError, parseBriefing } from './briefing-md.js';
 
 const KEY_PATH = process.env.DRIVE_KEY ?? '/etc/ai-briefing/drive-key.json';
@@ -114,13 +114,13 @@ async function download(token, f) {
 	return buf.toString('utf8');
 }
 
-/** name -> md5 already ingested. Read-only; empty before the first ingest. */
+/** name -> md5 already ingested. Read-only; empty before the first ingest and before the *_md migration. */
 function ingestedFiles() {
 	if (!existsSync(DB_PATH)) return new Map();
 	const db = new Database(DB_PATH, { readonly: true, fileMustExist: true });
 	try {
 		const has = db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'drive_files'").get();
-		return has ? new Map(db.prepare('SELECT name, md5 FROM drive_files').all().map((r) => [r.name, r.md5])) : new Map();
+		return has && !needsMigration(db) ? new Map(db.prepare('SELECT name, md5 FROM drive_files').all().map((r) => [r.name, r.md5])) : new Map();
 	} finally {
 		db.close();
 	}
@@ -141,6 +141,8 @@ async function commit(entries) {
 	const db = new Database(tmp);
 	try {
 		openWriter(db).applyAll(entries);
+		const stale = staleDates(db);
+		if (stale.length) throw new Error(`not re-ingested after the markdown migration: ${stale.join(', ')}`);
 		const check = db.pragma('quick_check', { simple: true });
 		if (check !== 'ok') throw new Error(`quick_check on new database: ${check}`);
 	} catch (e) {

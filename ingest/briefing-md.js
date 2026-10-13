@@ -1,6 +1,7 @@
 // Strict parser for Grok Bot's daily briefing-YYYY-MM-DD.md (format spec: DRIVE_FORMAT.md on its side).
-// Anything off-format throws, so a bad file is skipped instead of half-ingested. All HTML is produced
-// here from escaped text: raw HTML in the markdown comes out as literal text, never as markup.
+// Anything off-format throws, so a bad file is skipped instead of half-ingested. Text is stored as
+// markdown, not HTML; the app renders it through src/lib/inline-md.js, so raw HTML stays literal text.
+import { inlineTokens } from '../src/lib/inline-md.js';
 
 const MAX_BYTES = 512 * 1024;
 const MAX_ITEMS = 200;
@@ -12,52 +13,14 @@ const fail = (msg) => {
 	throw new FormatError(msg);
 };
 
-const escapeHtml = (s) =>
-	s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-
-// Inline markdown: [label](https://…), **bold**, `code`. Everything else is escaped text.
-const INLINE = /\[([^\[\]\n]+)\]\(([^\s()<>]+)\)|\*\*(.+?)\*\*|`([^`\n]+)`/g;
-
-function httpsUrl(raw) {
-	let u;
-	try {
-		u = new URL(raw);
-	} catch {
-		fail(`bad link URL: ${raw}`);
-	}
-	if (u.protocol !== 'https:' || u.username || u.password) fail(`link is not a plain https URL: ${raw}`);
-	return u.href;
-}
-
-/** Render one line of inline markdown to { html, text, links }. */
-export function renderInline(src) {
-	let html = '';
-	let text = '';
-	const links = [];
-	let last = 0;
-	for (const m of src.matchAll(INLINE)) {
-		html += escapeHtml(src.slice(last, m.index));
-		text += src.slice(last, m.index);
-		last = m.index + m[0].length;
-		if (m[1] !== undefined) {
-			const url = httpsUrl(m[2]);
-			const label = m[1].trim();
-			links.push({ label, url });
-			html += `<a href="${escapeHtml(url)}" rel="noopener noreferrer">${escapeHtml(label)}</a>`;
-			text += label;
-		} else if (m[3] !== undefined) {
-			html += `<strong>${escapeHtml(m[3])}</strong>`;
-			text += m[3];
-		} else {
-			html += `<code>${escapeHtml(m[4])}</code>`;
-			text += m[4];
-		}
-	}
-	html += escapeHtml(src.slice(last));
-	text += src.slice(last);
-	// A leftover "](" means a link that didn't match the https pattern above.
+/** Check one line of inline markdown and return { text, links }: plain text for search, and the links. */
+export function checkInline(src) {
+	const tokens = inlineTokens(src);
+	const text = tokens.map((t) => t.text).join('');
+	// A leftover "](" means a link that didn't parse, or whose URL isn't plain https.
 	if (/\]\(/.test(text)) fail(`malformed or non-https link in: ${src}`);
-	return { html, text: text.replace(/\s+/g, ' ').trim(), links };
+	const links = tokens.filter((t) => t.type === 'link').map((t) => ({ label: t.text, url: t.url }));
+	return { text: text.replace(/\s+/g, ' ').trim(), links };
 }
 
 const paragraphs = (lines) =>
@@ -66,6 +29,13 @@ const paragraphs = (lines) =>
 		.split(/\n\s*\n/)
 		.map((p) => p.replace(/\s*\n\s*/g, ' ').trim())
 		.filter(Boolean);
+
+/** Paragraphs as stored: checked, then joined by blank lines. null when there are none. */
+function paragraphsMd(lines) {
+	const paras = paragraphs(lines);
+	paras.forEach(checkInline);
+	return paras.length ? paras.join('\n\n') : null;
+}
 
 function frontMatter(lines) {
 	if (lines[0] !== '---') fail('missing front matter');
@@ -124,22 +94,17 @@ export function parseBriefing(source, expectDate) {
 	const items = [];
 	let pos = 0;
 	const out = sections.map((s, i) => {
-		const note = paragraphs(s.note);
-		const section = {
-			position: i,
-			title: s.title,
-			note_html: note.length ? note.map((p) => `<p>${renderInline(p).html}</p>`).join('') : null
-		};
+		const section = { position: i, title: s.title, note_md: paragraphsMd(s.note) };
 		if (s.title === OUTAGES) {
 			if (!s.bullets.length) fail('Outages section has no item');
-			// The app shows one outage line per briefing, so several bullets become one item.
-			const parts = s.bullets.map(renderInline);
+			// The app shows one outage line per briefing, so several bullets become one item, a line each.
+			const parts = s.bullets.map(checkInline);
 			items.push({
 				category: OUTAGES,
 				position: 0,
 				headline: null,
 				body: parts.map((p) => p.text).join(' '),
-				body_html: parts.map((p) => p.html).join('<br>'),
+				body_md: s.bullets.join('\n'),
 				is_outage: true,
 				links: parts.flatMap((p) => p.links)
 			});
@@ -149,13 +114,13 @@ export function parseBriefing(source, expectDate) {
 		for (const b of s.bullets) {
 			const m = /^\*\*(.+?)\*\*\s*(?:[—–:-]\s*)?(.*)$/.exec(b);
 			if (!m || !m[2].trim()) fail(`item must be "**Headline** — summary": ${b}`);
-			const r = renderInline(b);
+			const r = checkInline(b);
 			items.push({
 				category: s.title,
 				position: ++pos,
-				headline: renderInline(m[1]).text,
+				headline: checkInline(m[1]).text,
 				body: r.text,
-				body_html: r.html,
+				body_md: b,
 				is_outage: false,
 				links: r.links
 			});
@@ -164,13 +129,12 @@ export function parseBriefing(source, expectDate) {
 	});
 	if (items.length > MAX_ITEMS) fail('too many items');
 
-	const introParas = paragraphs(intro);
 	return {
 		briefing: {
 			date: fm.date,
-			title: renderInline(fm.title).text,
-			coverage: fm.coverage ? renderInline(fm.coverage).text : null,
-			intro_html: introParas.length ? introParas.map((p) => `<p>${renderInline(p).html}</p>`).join('') : null,
+			title: checkInline(fm.title).text,
+			coverage: fm.coverage ? checkInline(fm.coverage).text : null,
+			intro_md: paragraphsMd(intro),
 			outage_alert: fm.outage_alert === 'true'
 		},
 		sections: out,

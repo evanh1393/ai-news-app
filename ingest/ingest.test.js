@@ -2,8 +2,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import Database from 'better-sqlite3';
-import { openWriter } from './apply.js';
-import { FormatError, parseBriefing, renderInline } from './briefing-md.js';
+import { inlineTokens } from '../src/lib/inline-md.js';
+import { needsMigration, openWriter, sourceToMarkdown, staleDates } from './apply.js';
+import { FormatError, checkInline, parseBriefing } from './briefing-md.js';
 
 const SAMPLE = `---
 date: 2026-10-13
@@ -27,12 +28,14 @@ One note.
 - **Startup raises $1B** — Series C. [Wire](https://wire.example.com/s)
 `;
 
-// Mirrors src/lib/server/schema.ts; FTS is created per test in each variant Grok Bot might use.
+// Grok Bot's original schema, which openWriter migrates to the *_md columns in src/lib/server/schema.ts.
+// FTS is created per test in each variant Grok Bot might use.
 const BASE = `
 CREATE TABLE briefings (date TEXT PRIMARY KEY, title TEXT NOT NULL, coverage TEXT, intro_html TEXT, outage_alert INTEGER NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE sections (briefing_date TEXT NOT NULL, position INTEGER NOT NULL, title TEXT NOT NULL, note_html TEXT);
 CREATE TABLE items (id INTEGER PRIMARY KEY, briefing_date TEXT NOT NULL, category TEXT NOT NULL, position INTEGER NOT NULL, headline TEXT, body TEXT NOT NULL, body_html TEXT NOT NULL, is_outage INTEGER NOT NULL);
 CREATE TABLE item_links (item_id INTEGER NOT NULL, label TEXT NOT NULL, url TEXT NOT NULL);
+CREATE TABLE sources (id INTEGER PRIMARY KEY, grp TEXT NOT NULL, subgroup TEXT, position INTEGER NOT NULL, value TEXT NOT NULL, note TEXT);
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
 `;
 const FTS = {
@@ -48,7 +51,7 @@ const rejects = (src, re) => assert.throws(() => parseBriefing(src, '2026-10-13'
 test('parses the sample into rows', () => {
 	const p = parseBriefing(SAMPLE, '2026-10-13');
 	assert.equal(p.briefing.title, 'Big model day');
-	assert.equal(p.briefing.intro_html, '<p>Two launches and a funding round.</p>');
+	assert.equal(p.briefing.intro_md, 'Two launches and a funding round.');
 	assert.deepEqual(
 		p.sections.map((s) => [s.position, s.title]),
 		[
@@ -57,7 +60,7 @@ test('parses the sample into rows', () => {
 			[2, 'Markets & Funding']
 		]
 	);
-	assert.equal(p.sections[1].note_html, '<p>One note.</p>');
+	assert.equal(p.sections[1].note_md, 'One note.');
 	assert.deepEqual(
 		p.items.map((i) => [i.position, i.category, i.headline, i.is_outage]),
 		[
@@ -69,25 +72,28 @@ test('parses the sample into rows', () => {
 	);
 	const x = p.items[1];
 	assert.equal(x.body, 'Model X ships — Faster and cheaper. Vendor blog News');
-	assert.match(x.body_html, /^<strong>Model X ships<\/strong> — /);
-	assert.match(x.body_html, /href="https:\/\/news\.example\.com\/a\?b=1&amp;c=2"/);
+	assert.match(x.body_md, /^\*\*Model X ships\*\* — Faster and cheaper\. \[Vendor blog\]\(https:\/\/example\.com\/x\)/);
 	assert.deepEqual(x.links, [
 		{ label: 'Vendor blog', url: 'https://example.com/x' },
 		{ label: 'News', url: 'https://news.example.com/a?b=1&c=2' }
 	]);
 });
 
-test('raw HTML is escaped, never passed through', () => {
-	const r = renderInline('**<img src=x onerror=alert(1)>** — hi <script>alert(1)</script> [a"b](https://e.com/"x)');
-	assert.doesNotMatch(r.html, /<img|<script/);
-	assert.match(r.html, /&lt;img src=x onerror=alert\(1\)&gt;/);
+test('tokens carry raw HTML as text, never as markup', () => {
+	assert.deepEqual(inlineTokens('**<img src=x onerror=alert(1)>** — hi <script>x</script> `<b>` [a"b](https://e.com/"x)'), [
+		{ type: 'strong', text: '<img src=x onerror=alert(1)>' },
+		{ type: 'text', text: ' — hi <script>x</script> ' },
+		{ type: 'code', text: '<b>' },
+		{ type: 'text', text: ' ' },
+		{ type: 'link', text: 'a"b', url: 'https://e.com/%22x' }
+	]);
 });
 
-test('rejects non-https and malformed links', () => {
-	assert.throws(() => renderInline('[x](javascript:alert(1))'), FormatError);
-	assert.throws(() => renderInline('[x](http://e.com)'), FormatError);
-	assert.throws(() => renderInline('[x](data:text/html,hi)'), FormatError);
-	assert.throws(() => renderInline('[x](https://user:pw@e.com)'), FormatError);
+test('links only render for plain https URLs', () => {
+	for (const bad of ['javascript:alert(1)', 'http://e.com', 'data:text/html,hi', 'https://user:pw@e.com']) {
+		assert.deepEqual(inlineTokens(`[x](${bad})`), [{ type: 'text', text: `[x](${bad})` }]);
+		assert.throws(() => checkInline(`[x](${bad})`), FormatError);
+	}
 });
 
 test('rejects off-format files', () => {
@@ -134,4 +140,29 @@ test('a failure rolls back the whole batch', () => {
 	assert.throws(() => w.applyAll([good, bad]));
 	assert.equal(db.prepare('SELECT COUNT(*) n FROM briefings').get().n, 0);
 	assert.equal(db.prepare('SELECT COUNT(*) n FROM drive_files').get().n, 0);
+});
+
+test('migrates the old *_html schema and sources to markdown', () => {
+	const db = new Database(':memory:');
+	db.exec(BASE + FTS.external);
+	db.exec(`INSERT INTO briefings VALUES ('2026-10-12', 'Old', NULL, '<p>x</p>', 0, 't');
+		INSERT INTO items (briefing_date, category, position, body, body_html, is_outage) VALUES ('2026-10-12', 'A', 1, 'old', '<b>old</b>', 0);
+		INSERT INTO items_fts (rowid, headline, body) SELECT id, headline, body FROM items;
+		INSERT INTO sources (grp, position, value) VALUES ('g', 1, '<code>AI news &lt;Month&gt;</code> / a &amp; b');`);
+	assert.equal(needsMigration(db), true);
+	openWriter(db);
+	assert.equal(needsMigration(db), false);
+	assert.equal(db.prepare('SELECT value_md FROM sources').get().value_md, '`AI news <Month>` / a & b');
+	// The old day can't be converted, so it's stale until its file is ingested again.
+	assert.deepEqual(staleDates(db), ['2026-10-12']);
+	openWriter(db).applyAll([{ parsed: parseBriefing(SAMPLE.replaceAll('2026-10-13', '2026-10-12'), '2026-10-12'), file: { name: 'a', id: 'a', md5: 'a' } }]);
+	assert.deepEqual(staleDates(db), []);
+	assert.equal(db.prepare("SELECT intro_md FROM briefings").get().intro_md, 'Two launches and a funding round.');
+});
+
+test('sources conversion refuses anything but text and <code>', () => {
+	assert.throws(() => sourceToMarkdown('<a href="https://e.com">x</a>'));
+	assert.throws(() => sourceToMarkdown('<code>x</code><script>'));
+	assert.throws(() => sourceToMarkdown('reads as **bold**'));
+	assert.equal(sourceToMarkdown('https://status.x.ai'), 'https://status.x.ai');
 });

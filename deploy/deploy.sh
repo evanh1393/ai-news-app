@@ -62,12 +62,11 @@ fi
 echo "syncing build"
 rsync -rl --delete "$root/build/" "${host}:${remote}/build/"
 
-echo "installing Caddyfile, systemd units, egress firewall, and upload shell"
+echo "installing Caddyfile, systemd units, and egress firewall"
 scp "$root/deploy/Caddyfile" "${host}:/tmp/Caddyfile"
 scp "$root/deploy/ai-briefing-app.service" "${host}:/tmp/ai-briefing-app.service"
 scp "$root/deploy/briefing-pull.service" "$root/deploy/briefing-pull.timer" "${host}:/tmp/"
 scp "$root/deploy/ai-briefing-egress.nft" "${host}:/tmp/ai-briefing-egress.nft"
-scp "$root/deploy/briefing-upload" "${host}:/tmp/briefing-upload"
 ssh "$host" 'set -euo pipefail
   sudo caddy validate --adapter caddyfile --config /tmp/Caddyfile
   sudo nft -c -f /tmp/ai-briefing-egress.nft
@@ -75,10 +74,15 @@ ssh "$host" 'set -euo pipefail
   sudo cp /tmp/ai-briefing-app.service /etc/systemd/system/ai-briefing-app.service
   sudo cp /tmp/briefing-pull.service /tmp/briefing-pull.timer /etc/systemd/system/
   sudo install -D -m 644 /tmp/ai-briefing-egress.nft /etc/ai-briefing/egress.nft
-  sudo install -m 755 /tmp/briefing-upload /usr/local/sbin/briefing-upload
-  rm -f /tmp/Caddyfile /tmp/ai-briefing-app.service /tmp/ai-briefing-egress.nft /tmp/briefing-upload \
+  rm -f /tmp/Caddyfile /tmp/ai-briefing-app.service /tmp/ai-briefing-egress.nft \
     /tmp/briefing-pull.service /tmp/briefing-pull.timer
   sudo systemctl daemon-reload
+  # Retired DB-push path: Grok Bot used to upload briefing.db as newsbot. No-ops once done.
+  sudo rm -f /usr/local/sbin/briefing-upload
+  if id newsbot >/dev/null 2>&1; then sudo usermod --lock --shell /usr/sbin/nologin newsbot; fi
+  # Pull before restarting, so the new app never reads a schema older than its code (ingest/apply.js
+  # migrates it). A rejected Drive file makes this exit 1 after ingesting the rest, so check the page instead.
+  sudo systemctl start briefing-pull.service || journalctl -u briefing-pull -n 20 --no-pager >&2
   sudo systemctl reload caddy
   sudo systemctl restart ai-briefing-app
   for _ in 1 2 3 4 5 6 7 8 9 10; do
