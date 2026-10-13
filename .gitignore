@@ -14,3 +14,5 @@ node_modules
 /infra/*.tfstate
 /infra/*.tfstate.*
 /infra/tfplan
+# Local Claude Code instructions.
+/CLAUDE.md
