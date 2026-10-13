@@ -22,7 +22,7 @@ npm22() {
   "$@"
 }
 
-# PREBUILT=1: build/ already exists.
+# PREBUILT=1: build/ already exists (CI builds it in a job that has no deploy credentials).
 if [[ "${PREBUILT:-}" != 1 ]]; then
   echo "installing local dependencies"
   npm22 npm ci
@@ -61,6 +61,11 @@ fi
 
 echo "syncing build"
 rsync -rl --delete "$root/build/" "${host}:${remote}/build/"
+
+echo "authorizing the CI deploy key"
+# Only usable from 127.0.0.1, i.e. through the Cloudflare Tunnel (see deploy.yml). Idempotent.
+ssh "$host" "grep -qxF '$(cat "$root/deploy/ci_authorized_key")' ~/.ssh/authorized_keys || cat >> ~/.ssh/authorized_keys" \
+  < "$root/deploy/ci_authorized_key"
 
 echo "installing Caddyfile, systemd units, and egress firewall"
 scp "$root/deploy/Caddyfile" "${host}:/tmp/Caddyfile"
