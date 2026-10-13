@@ -78,14 +78,16 @@ scp "$root/deploy/Caddyfile" "${host}:/tmp/Caddyfile"
 scp "$root/deploy/ai-briefing-app.service" "${host}:/tmp/ai-briefing-app.service"
 scp "$root/deploy/briefing-pull.service" "$root/deploy/briefing-pull.timer" "${host}:/tmp/"
 scp "$root/deploy/ai-briefing-egress.nft" "${host}:/tmp/ai-briefing-egress.nft"
+scp "$root/deploy/errors/unavailable.html" "${host}:/tmp/unavailable.html"
 ssh "$host" 'set -euo pipefail
   sudo caddy validate --adapter caddyfile --config /tmp/Caddyfile
   sudo nft -c -f /tmp/ai-briefing-egress.nft
   sudo cp /tmp/Caddyfile /etc/caddy/Caddyfile
+  sudo install -D -m 644 /tmp/unavailable.html /etc/caddy/errors/unavailable.html
   sudo cp /tmp/ai-briefing-app.service /etc/systemd/system/ai-briefing-app.service
   sudo cp /tmp/briefing-pull.service /tmp/briefing-pull.timer /etc/systemd/system/
   sudo install -D -m 644 /tmp/ai-briefing-egress.nft /etc/ai-briefing/egress.nft
-  rm -f /tmp/Caddyfile /tmp/ai-briefing-app.service /tmp/ai-briefing-egress.nft \
+  rm -f /tmp/Caddyfile /tmp/unavailable.html /tmp/ai-briefing-app.service /tmp/ai-briefing-egress.nft \
     /tmp/briefing-pull.service /tmp/briefing-pull.timer
   sudo systemctl daemon-reload
   sudo systemctl enable --quiet briefing-pull.timer ai-briefing-app
