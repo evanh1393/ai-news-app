@@ -1,6 +1,6 @@
 # PRs get migration checks, a type check, tests and a build. Pushes to main (PR merges) also deploy to
 # the droplet: SSH through the Cloudflare Tunnel (ssh.eh-ai-blast.app), past a Cloudflare Access
-# service token. The droplet's port 22 stays closed to everyone but the home IP.
+# service token. The droplet's port 22 stays closed to the internet.
 name: ci
 
 on:
