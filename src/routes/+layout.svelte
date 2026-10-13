@@ -77,19 +77,16 @@
 	{@render children()}
 </main>
 
-<footer class="border-t border-base-300">
-	<div class="mx-auto flex max-w-6xl flex-col gap-6 px-3 pt-10 pb-6 text-sm sm:px-6">
-		<div class="flex flex-wrap items-start justify-between gap-8">
-			<a class="text-lg font-medium tracking-tight transition-opacity hover:opacity-70" href="/">AI Briefing</a>
-			<div>
-				<div class="mb-4 text-base-content/50">Browse</div>
-				<ul class="flex flex-col gap-2">
-					{#each nav as n (n.href)}
-						<li><a class="transition-opacity hover:opacity-70" href={n.href}>{n.label}</a></li>
-					{/each}
-				</ul>
-			</div>
-		</div>
-		<p class="text-base-content/50">Data updated {fmtTime(data.ingestedAt)}</p>
+<footer class="mx-auto max-w-6xl px-3 pb-10 sm:px-6">
+	<div class="flex flex-col gap-4 border-t border-base-300/60 pt-6 text-sm text-base-content/45 sm:flex-row sm:items-center sm:justify-between">
+		<p>
+			<a class="text-base-content/70 transition-colors hover:text-base-content" href="/">AI Briefing</a> · curated by AI, about AI{#if data.ingestedAt}
+				· updated {fmtTime(data.ingestedAt)}{/if}
+		</p>
+		<ul class="flex flex-wrap gap-x-5 gap-y-1">
+			{#each nav as n (n.href)}
+				<li><a class="transition-colors hover:text-base-content" href={n.href}>{n.label}</a></li>
+			{/each}
+		</ul>
 	</div>
 </footer>
