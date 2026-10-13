@@ -4,15 +4,22 @@
 	let { briefing }: { briefing: FullBriefing } = $props();
 </script>
 
-<div class="mx-auto max-w-3xl">
-	<header class="mb-8">
-		<h2 class="text-4xl leading-[1.05] text-balance sm:text-5xl">{briefing.title}</h2>
-		{#if briefing.coverage}<div class="mt-4 text-sm text-base-content/50">{briefing.coverage}</div>{/if}
-		{#if briefing.intro_html}<div class="prose mt-3 max-w-none text-base-content/60">{@html briefing.intro_html}</div>{/if}
+<div class="mx-auto max-w-5xl">
+	<header class="intro mb-8 max-w-3xl">
+		<h2 class="font-serif text-5xl leading-[1.05] tracking-normal text-balance italic sm:text-6xl">The AI news, minus the noise.</h2>
+		<p class="mt-4 text-lg text-pretty text-base-content/60">
+			A briefing curated by AI, about AI. Each morning an agent combs through <a class="text-base-content underline underline-offset-4" href="/sources">our sources</a>, keeps the stories that
+			matter, and boils each one down to a few lines. A new edition goes up here at 7:40 AM ET. Read it in a few minutes and you're caught up on
+			what happened in AI.
+		</p>
+		{#if briefing.coverage}<div class="mt-4 text-sm text-base-content/50">Covering {briefing.coverage}</div>{/if}
 	</header>
 
 	{#if briefing.outage}
-		<div role="alert" class="alert alert-soft mb-6 block rounded-box px-6 py-4" class:alert-error={briefing.outage_alert} class:bg-base-200={!briefing.outage_alert}>
+		<div
+			role="alert"
+			class="alert alert-soft mb-6 block rounded-md px-6 py-4 backdrop-blur-sm {briefing.outage_alert ? 'alert-error' : 'border-base-300/60 bg-base-200/50'}"
+		>
 			<b>{briefing.outage_alert ? '🚨 OUTAGE ALERT' : '✅ Outages'}:</b>
 			<span class="prose prose-sm max-w-none prose-a:text-primary [&_p]:inline">{@html briefing.outage.body_html}</span>
 		</div>
@@ -25,11 +32,11 @@
 				<span class="text-sm text-base-content/50">{section.items.length} {section.items.length === 1 ? 'story' : 'stories'}</span>
 			</div>
 			{#if section.note_html}<div class="prose prose-sm mb-5 max-w-none text-base-content/60 prose-a:text-primary">{@html section.note_html}</div>{/if}
-			<ol class="flex flex-col gap-4">
+			<ol class="grid gap-4 md:grid-cols-2">
 				{#each section.items as item (item.id)}
 					<li
 						id="item-{item.position}"
-						class="story flex scroll-mt-28 flex-col gap-3 rounded-box border border-base-300 bg-base-200 p-6 transition-colors target:border-primary"
+						class="story flex scroll-mt-28 flex-col gap-3 rounded-md border border-base-300/60 bg-base-200/50 p-6 backdrop-blur-sm transition-colors hover:bg-base-200/80 target:border-primary"
 					>
 						<span class="text-sm text-base-content/40 tabular-nums">{String(item.position).padStart(2, '0')}</span>
 						<div class="prose prose-sm max-w-none sm:prose-base prose-a:text-primary">{@html item.body_html}</div>
