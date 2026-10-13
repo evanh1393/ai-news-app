@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-// Pulls Grok Bot's briefing-YYYY-MM-DD.md files from the "AI Briefings" Drive folder into briefing.db.
+// Pulls Grok Bot's briefing-YYYY-MM-DD.md files, and sources.md (its source list, shown on /sources),
+// from the "AI Briefings" Drive folder into briefing.db.
 // Runs on the droplet as briefing-pull (deploy/briefing-pull.service). Nothing connects in: this reaches
 // out to Google with a service account that can only read that one folder.
 //
 //   node ingest/pull.js --check      list the folder; touches no database
 //   node ingest/pull.js --dry-run    download and validate new/changed files; writes nothing
-//   node ingest/pull.js --file X.md  validate a local file; no network
+//   node ingest/pull.js --file X.md  validate a local briefing or sources.md; no network
 //   node ingest/pull.js --migrate    apply pending schema migrations only; no network
 //   node ingest/pull.js              ingest new/changed files
 //
@@ -18,6 +19,7 @@ import { basename, dirname, join } from 'node:path';
 import Database from 'better-sqlite3';
 import { openWriter, pendingMigrations, verify } from './apply.js';
 import { FormatError, parseBriefing } from './briefing-md.js';
+import { parseSources } from './sources-md.js';
 
 const KEY_PATH = process.env.DRIVE_KEY ?? '/etc/ai-briefing/drive-key.json';
 const FOLDER_ID = process.env.DRIVE_FOLDER_ID ?? '11AOFN-eH7oDUXnxa4RABCxc2HQDNBw3f';
@@ -26,6 +28,7 @@ const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const DRIVE = 'https://www.googleapis.com/drive/v3/files';
 const MAX_BYTES = 512 * 1024;
 const NAME = /^briefing-(\d{4}-\d{2}-\d{2})\.md$/;
+const SOURCES = 'sources.md';
 
 /** @typedef {{ id: string, name: string, mimeType: string, md5Checksum?: string, size?: string, modifiedTime: string }} DriveFile */
 /** @typedef {import('./apply.js').Entry} Entry */
@@ -97,15 +100,15 @@ async function listFolder(token) {
 }
 
 /**
- * Briefing files only, newest upload winning if a name appears twice. Logs anything skipped.
+ * Briefings and sources.md only, newest upload winning if a name appears twice. Logs anything skipped.
  * @param {DriveFile[]} files
  */
-function briefingFiles(files) {
+function ingestFiles(files) {
 	/** @type {Map<string, DriveFile & { md5Checksum: string }>} */
 	const byName = new Map();
 	for (const f of files) {
-		if (!NAME.test(f.name)) {
-			console.warn(`skip ${f.name}: not a briefing-YYYY-MM-DD.md file`);
+		if (!NAME.test(f.name) && f.name !== SOURCES) {
+			console.warn(`skip ${f.name}: not a briefing-YYYY-MM-DD.md file or ${SOURCES}`);
 			continue;
 		}
 		if (f.mimeType.startsWith('application/vnd.google-apps.') || !f.md5Checksum) {
@@ -134,6 +137,23 @@ async function download(token, f) {
 	const buf = Buffer.from(await res.arrayBuffer());
 	if (buf.length > MAX_BYTES) throw new FormatError('file too large');
 	return buf.toString('utf8');
+}
+
+/**
+ * Parse a downloaded or local file by its name. Throws FormatError if it's off-format.
+ * @param {string} name
+ * @param {string} text
+ * @param {DriveFile & { md5Checksum: string }} [f]
+ * @returns {{ entry: Entry, summary: string }}
+ */
+function parseFile(name, text, f) {
+	const file = { name, id: f?.id ?? '', md5: f?.md5Checksum ?? '' };
+	if (name === SOURCES) {
+		const sources = parseSources(text);
+		return { entry: { sources, file }, summary: `${sources.length} sources` };
+	}
+	const parsed = parseBriefing(text, NAME.exec(name)?.[1]);
+	return { entry: { parsed, file }, summary: `${parsed.sections.length} sections, ${parsed.items.length} items` };
 }
 
 /** Read-only look at the live database: { done: name -> md5 already ingested, pending: migration names }. */
@@ -208,8 +228,8 @@ async function check(token, email) {
 	if (!res.ok) throw new Error(`folder lookup -> ${res.status} ${(await res.text()).slice(0, 300)}`);
 	const folder = await res.json();
 	const all = await listFolder(token);
-	const files = briefingFiles(all);
-	console.log(`folder "${folder.name}" (${FOLDER_ID}): ${all.length} files, ${files.length} briefings`);
+	const files = ingestFiles(all);
+	console.log(`folder "${folder.name}" (${FOLDER_ID}): ${all.length} files, ${files.length} to ingest`);
 	for (const f of files) console.log(`  ${f.name}  ${f.size} bytes  modified ${f.modifiedTime}`);
 	return 0;
 }
@@ -220,9 +240,8 @@ async function main() {
 
 	if (mode === '--file') {
 		const path = args[1];
-		if (!path) throw new Error('usage: --file <briefing-YYYY-MM-DD.md>');
-		const p = parseBriefing(readFileSync(path, 'utf8'), NAME.exec(basename(path))?.[1]);
-		console.log(`${basename(path)}: ok, ${p.sections.length} sections, ${p.items.length} items`);
+		if (!path) throw new Error(`usage: --file <briefing-YYYY-MM-DD.md | ${SOURCES}>`);
+		console.log(`${basename(path)}: ok, ${parseFile(basename(path), readFileSync(path, 'utf8')).summary}`);
 		return 0;
 	}
 	if (mode === '--migrate') {
@@ -235,7 +254,7 @@ async function main() {
 
 	const { token, email } = await accessToken();
 	if (mode === '--check') return check(token, email);
-	const files = briefingFiles(await listFolder(token));
+	const files = ingestFiles(await listFolder(token));
 
 	const { done, pending } = liveState();
 	if (pending.length) console.log(`pending migrations: ${pending.join(', ')}`);
@@ -244,9 +263,9 @@ async function main() {
 	let failed = 0;
 	for (const f of changed) {
 		try {
-			const parsed = parseBriefing(await download(token, f), NAME.exec(f.name)?.[1]);
-			entries.push({ parsed, file: { name: f.name, id: f.id, md5: f.md5Checksum } });
-			console.log(`${f.name}: ok, ${parsed.items.length} items`);
+			const { entry, summary } = parseFile(f.name, await download(token, f), f);
+			entries.push(entry);
+			console.log(`${f.name}: ok, ${summary}`);
 		} catch (e) {
 			if (!(e instanceof FormatError)) throw e;
 			failed++;

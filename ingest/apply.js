@@ -1,11 +1,14 @@
 // Writes parsed briefings into briefing.db. Each date is replaced as a whole inside one transaction,
-// so re-ingesting a day is safe and other days' rows (and item IDs) are untouched.
+// so re-ingesting a day is safe and other days' rows (and item IDs) are untouched. sources.md
+// replaces the sources table the same way.
 import { readdirSync, readFileSync } from 'node:fs';
 
 /**
  * @typedef {import('better-sqlite3').Database} Db
  * @typedef {import('./briefing-md.js').ParsedBriefing} ParsedBriefing
- * @typedef {{ parsed: ParsedBriefing, file: { name: string, id: string, md5: string } }} Entry
+ * @typedef {import('./sources-md.js').SourceRow} SourceRow
+ * @typedef {{ name: string, id: string, md5: string }} DriveRef
+ * @typedef {{ parsed: ParsedBriefing, file: DriveRef } | { sources: SourceRow[], file: DriveRef }} Entry
  */
 
 // Schema changes are numbered SQL files, applied in order. PRAGMA user_version is the last one applied.
@@ -91,6 +94,8 @@ export function openWriter(db) {
 			'INSERT INTO items (briefing_date, category, position, headline, body, body_md, is_outage) VALUES (?, ?, ?, ?, ?, ?, ?)'
 		),
 		link: db.prepare('INSERT INTO item_links (item_id, label, url) VALUES (?, ?, ?)'),
+		delSources: db.prepare('DELETE FROM sources'),
+		source: db.prepare('INSERT INTO sources (grp, subgroup, position, value_md) VALUES (?, ?, ?, ?)'),
 		file: db.prepare(
 			'INSERT INTO drive_files (name, file_id, md5, ingested_at) VALUES (?, ?, ?, ?) ON CONFLICT(name) DO UPDATE SET file_id = excluded.file_id, md5 = excluded.md5, ingested_at = excluded.ingested_at'
 		),
@@ -122,7 +127,11 @@ export function openWriter(db) {
 		/** All or nothing. */
 		applyAll: db.transaction((/** @type {Entry[]} */ entries, now = new Date().toISOString()) => {
 			for (const e of entries) {
-				applyOne(e.parsed, now);
+				if ('sources' in e) {
+					// sources.md is the whole list, so it replaces every row.
+					q.delSources.run();
+					for (const r of e.sources) q.source.run(r.grp, r.subgroup, r.position, r.value_md);
+				} else applyOne(e.parsed, now);
 				q.file.run(e.file.name, e.file.id, e.file.md5, now);
 			}
 			if (entries.length) q.meta.run(now);
