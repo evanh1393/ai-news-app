@@ -1,0 +1,10 @@
+[Unit]
+Description=Pull the daily briefing shortly after Grok Bot's 7:30 AM ET run, then hourly for re-runs
+
+[Timer]
+OnCalendar=*-*-* 07:40:00 America/New_York
+OnCalendar=*-*-* *:10:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Copy CT 101's briefing.db to data/briefing.db for `npm run dev`.
 # --if-missing: do nothing when a local copy already exists (used by `predev`).
-# Grok Bot swaps the file in atomically and it has no WAL, so a plain read is consistent.
+# briefing-pull swaps the file in atomically and it has no WAL, so a plain read is consistent.
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -15,7 +15,7 @@ fi
 
 mkdir -p "$root/data"
 echo "pulling $host:$remote"
-# The data dir is newsbot:briefing 0750, so evanh reads it through sudo.
+# The data dir is briefing-pull:briefing 2750, so evanh reads it through sudo.
 ssh "$host" "sudo -n cat '$remote'" > "$local_db.tmp"
 node -e '
   const db = new (require("better-sqlite3"))(process.argv[1], { readonly: true });
