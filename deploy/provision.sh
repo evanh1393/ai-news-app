@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # One-time setup of a fresh Debian 13 droplet (infra/) to match CT 101, before the first `npm run deploy`.
-# Run as root from a laptop:
+# Run as root from a laptop, while the DigitalOcean firewall still has a temporary SSH rule (see README):
 #   ssh root@<droplet-ip> bash -s < deploy/provision.sh
-# Public traffic comes in through a Cloudflare Tunnel (cloudflared -> Caddy :8080), so the only
-# inbound port is SSH, which the DigitalOcean firewall limits to the home IP.
+# Public traffic comes in through a Cloudflare Tunnel (cloudflared -> Caddy :8080), and SSH through
+# Tailscale, so the droplet takes no inbound connections from the internet.
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
@@ -22,8 +22,14 @@ curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg -o /usr/share/keyrings
 echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main" \
   > /etc/apt/sources.list.d/cloudflared.list
 
+# Tailscale, for SSH. `tailscale up` is run separately (see README).
+curl -fsSL https://pkgs.tailscale.com/stable/debian/trixie.noarmor.gpg \
+  -o /usr/share/keyrings/tailscale-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg] https://pkgs.tailscale.com/stable/debian trixie main" \
+  > /etc/apt/sources.list.d/tailscale.list
+
 apt-get update
-apt-get -y install nodejs cloudflared
+apt-get -y install nodejs cloudflared tailscale
 
 # Users. evanh deploys (passwordless sudo, as deploy.sh uses `sudo -n`); briefing runs the app;
 # briefing-pull writes the DB. caddy comes from the package.
@@ -43,10 +49,10 @@ install -d -m 2775 -o briefing -g briefing-dev /opt/ai-briefing/app
 install -d -m 2750 -o briefing-pull -g briefing /opt/ai-briefing/data
 install -d -m 750 -o root -g briefing-pull /etc/ai-briefing
 
-# Inbound: SSH only. The DigitalOcean firewall also limits it to the home IP.
+# Inbound: SSH over Tailscale only. CI's SSH arrives through the tunnel on loopback, which ufw allows.
 ufw default deny incoming
 ufw default allow outgoing
-ufw allow OpenSSH
+ufw allow in on tailscale0 to any port 22 proto tcp
 ufw --force enable
 
 # Keys only, no root login once evanh exists. sshd uses the first value it reads, so this sorts
@@ -61,4 +67,4 @@ systemctl reload ssh
 
 systemctl enable caddy
 systemctl enable --now unattended-upgrades
-echo "provisioned. Next: install the tunnel token, copy drive-key.json, npm run deploy."
+echo "provisioned. Next: tailscale up, install the tunnel token, copy drive-key.json, npm run deploy."

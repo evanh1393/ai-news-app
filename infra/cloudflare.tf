@@ -1,6 +1,6 @@
 # Public traffic: eh-ai-blast.app -> Cloudflare -> tunnel -> cloudflared on the droplet -> Caddy :8080.
 # CI deploys: ssh.eh-ai-blast.app -> Access (service token) -> tunnel -> sshd on 127.0.0.1:22.
-# cloudflared connects out, so the droplet takes no inbound HTTP(S), and SSH only from home.
+# cloudflared connects out, so the droplet takes no inbound connections (people SSH over Tailscale).
 
 locals {
   cf_account_id = "beac23fc2ec67f70ff216c9245876934"
