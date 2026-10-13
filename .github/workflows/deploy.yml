@@ -15,12 +15,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # check-migrations.sh diffs against the base commit
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+      - name: Merged migrations are unchanged
+        if: github.event_name != 'workflow_dispatch'
+        run: bash ingest/check-migrations.sh "${{ github.event.pull_request.base.sha || github.event.before }}"
       - run: npm ci
+      # Type-checks the app and ingest/ (JS via checkJs + JSDoc).
       - run: npm run check
+      # Includes building a database from every migration, verify(), and schema.ts matching it.
       - run: npm test
       - run: npm run build
       - uses: actions/upload-artifact@v4
