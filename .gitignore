@@ -5,7 +5,12 @@ node_modules
 .env
 .env.*
 !.env.example
-# Local copy of CT 101's briefing.db for `npm run dev`.
+# Local copy of the server's briefing.db for `npm run dev`.
 /data
 # Claude Code worktrees.
 /.claude/worktrees
+# Terraform: local state and plans can hold secrets. The lock file is committed.
+/infra/.terraform/
+/infra/*.tfstate
+/infra/*.tfstate.*
+/infra/tfplan

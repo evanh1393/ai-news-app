@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Build on this machine with Node 22 and ship the app, Caddyfile, and unit to CT 101.
+# Build on this machine with Node 22 and ship the app, Caddyfile, and units to the droplet.
 # Does not touch /opt/ai-briefing/data. briefing-pull.timer updates briefing.db there from Drive.
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
-host=ai-briefing
+host=${DEPLOY_HOST:-ai-briefing-do}
 remote=/opt/ai-briefing/app
 cd "$root"
 
@@ -16,13 +16,13 @@ npm22() {
   local major
   major=$(node -p 'process.versions.node.split(".")[0]')
   if [[ "$major" != "22" ]]; then
-    echo "CT 101 runs Node 22. This machine is Node $(node -v), and mise is not available." >&2
+    echo "The droplet runs Node 22. This machine is Node $(node -v), and mise is not available." >&2
     exit 1
   fi
   "$@"
 }
 
-# PREBUILT=1: build/ already exists (CI builds it in a job that never joins the tailnet).
+# PREBUILT=1: build/ already exists.
 if [[ "${PREBUILT:-}" != 1 ]]; then
   echo "installing local dependencies"
   npm22 npm ci
@@ -50,7 +50,7 @@ rsync -rl --delete \
 if [[ "$need_deps" == 1 ]]; then
   echo "installing server dependencies"
   # Runtime packages only. --ignore-scripts: better-sqlite3 ships prebuilt binaries, but npm ci
-  # still tries node-gyp for it, and CT 101 has no compiler.
+  # still tries node-gyp for it, and the droplet has no compiler.
   ssh "$host" "cd '$remote' && npm ci --omit=dev --ignore-scripts && echo '$lock_local' > '$lock_marker'"
 fi
 
@@ -77,6 +77,7 @@ ssh "$host" 'set -euo pipefail
   rm -f /tmp/Caddyfile /tmp/ai-briefing-app.service /tmp/ai-briefing-egress.nft \
     /tmp/briefing-pull.service /tmp/briefing-pull.timer
   sudo systemctl daemon-reload
+  sudo systemctl enable --quiet briefing-pull.timer ai-briefing-app
   # Pull before restarting, so the new app never reads a schema older than its code (ingest/apply.js
   # migrates it). A rejected Drive file makes this exit 1 after ingesting the rest, so check the page instead.
   sudo systemctl start briefing-pull.service || journalctl -u briefing-pull -n 20 --no-pager >&2

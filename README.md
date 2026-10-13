@@ -1,8 +1,8 @@
 # AI news app
 
-SvelteKit UI for the briefing site on homelab CT 101 (`ssh ai-briefing`).
+SvelteKit UI for the briefing site at https://eh-ai-blast.app, on a DigitalOcean droplet (`ssh ai-briefing-do`). `infra/` has the Terraform for the droplet and Cloudflare; see [infra/README.md](infra/README.md).
 
-Edit this checkout. The database is not in this repo. `briefing-pull` on the container updates `/opt/ai-briefing/data/briefing.db` from Grok Bot's Drive files (see below), and the app only reads it.
+Edit this checkout. The database is not in this repo. `briefing-pull` on the droplet updates `/opt/ai-briefing/data/briefing.db` from Grok Bot's Drive files (see below), and the app only reads it.
 
 ## Develop
 
@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-Production on CT 101 is Node 22. `npm run dev` reads `data/briefing.db` (gitignored), or whatever `BRIEFING_DB` points at. If that file is missing, `npm run dev` first pulls a copy from CT 101 over SSH. Run `npm run db:pull` to refresh it. The data dir isn't readable by `evanh`, so the pull reads it with `sudo`.
+Production is Node 22. `npm run dev` reads `data/briefing.db` (gitignored), or whatever `BRIEFING_DB` points at. If that file is missing, `npm run dev` first pulls a copy from the droplet over SSH. Run `npm run db:pull` to refresh it. The data dir isn't readable by `evanh`, so the pull reads it with `sudo`.
 
 ## Deploy
 
@@ -19,21 +19,25 @@ Production on CT 101 is Node 22. `npm run dev` reads `data/briefing.db` (gitigno
 npm run deploy
 ```
 
-That builds here with Node 22, copies the app and `deploy/Caddyfile` to CT 101, restarts `ai-briefing-app`, and reloads Caddy. When `package-lock.json` changes (or the last server install failed), the script also runs `npm ci --omit=dev --ignore-scripts` on the container. `node build` loads the runtime `dependencies` (`better-sqlite3`, `drizzle-orm`) from there.
+That builds here with Node 22, copies the app and `deploy/Caddyfile` to the droplet, restarts `ai-briefing-app`, and reloads Caddy. When `package-lock.json` changes (or the last server install failed), the script also runs `npm ci --omit=dev --ignore-scripts` on the droplet. `node build` loads the runtime `dependencies` (`better-sqlite3`, `drizzle-orm`) from there.
 
 ## CI/CD
 
-`.github/workflows/deploy.yml` checks migrations, type-checks (including the plain JS in `ingest/`, through `checkJs` and JSDoc types), tests and builds every PR. A push to `main` (a merged PR) also deploys: the runner joins the tailnet as an ephemeral `tag:ci` node, Tailscale SSH lets it in to CT 101 (`tag:briefing`) as `evanh`, and it runs `npm run deploy`. `deploy/known_hosts` pins CT 101's host key.
+`.github/workflows/deploy.yml` checks migrations, type-checks (including the plain JS in `ingest/`, through `checkJs` and JSDoc types), tests and builds every PR and push to `main`. It doesn't deploy: the droplet only accepts SSH from the home IP, so run `npm run deploy` after merging.
 
-Repo secrets: `TS_OAUTH_CLIENT_ID` and `TS_OAUTH_SECRET`, from a Tailscale OAuth client with the `auth_keys` write scope and tag `tag:ci`.
+## Hosting
 
-## Hardening on CT 101
+Visitors reach `eh-ai-blast.app` through Cloudflare, which forwards over a Cloudflare Tunnel to `cloudflared` on the droplet, then to Caddy on `127.0.0.1:8080` and the app on `:3000`. The tunnel is an outbound connection, so the droplet takes no inbound web traffic. Its only open port is SSH, which the DigitalOcean firewall (`infra/main.tf`) limits to the home IP; root login and passwords are off. Cloudflare rate-limits `/search` per IP (`infra/cloudflare.tf`).
 
-`ai-briefing-app.service` runs sandboxed (`systemd-analyze security ai-briefing-app` ≈ 1.7): the filesystem is read-only to it, including its own code, and it has no capabilities. Before the app starts, the unit loads `deploy/ai-briefing-egress.nft` (installed to `/etc/ai-briefing/egress.nft`), which rejects every non-loopback connection the `briefing` and `caddy` users open, so neither the app nor Caddy can reach the tailnet, LAN or internet. systemd's `IPAddressDeny` would be simpler, but it does nothing in this LXC container. Anything else run as `briefing` (e.g. `npm install`) is blocked too; install packages as `evanh`.
+`deploy/provision.sh` set up the droplet once (packages, users, directories, `ufw`, sshd). After it, `cloudflared service install` took the tunnel token from `terraform output -raw tunnel_token`, and `/etc/ai-briefing/drive-key.json` was copied over by hand.
+
+## Hardening on the droplet
+
+`ai-briefing-app.service` runs sandboxed (`systemd-analyze security ai-briefing-app` ≈ 1.7): the filesystem is read-only to it, including its own code, and it has no capabilities. Before the app starts, the unit loads `deploy/ai-briefing-egress.nft` (installed to `/etc/ai-briefing/egress.nft`), which rejects every non-loopback connection the `briefing` and `caddy` users open, so neither the app nor Caddy can reach the network. (It was written for CT 101, an LXC container where systemd's `IPAddressDeny` does nothing.) Anything else run as `briefing` (e.g. `npm install`) is blocked too; install packages as `evanh`.
 
 ## Briefing ingest (Drive pull)
 
-Grok Bot writes `briefing-YYYY-MM-DD.md` to the "AI Briefings" Google Drive folder. CT 101 pulls it: `briefing-pull.timer` runs `ingest/pull.js` as `briefing-pull` at 7:40 AM ET and hourly at :10. It authenticates with a service account (`/etc/ai-briefing/drive-key.json`) that has no project roles, only a Viewer share on that folder. New or changed files are validated strictly (`ingest/briefing-md.js`; off-format files are logged and skipped) and upserted one date at a time into a copy of `briefing.db` that is then renamed into place (the previous file is kept as `briefing.db.prev`). The egress firewall limits `briefing-pull` to DNS and HTTPS. `npm run deploy` also runs it once, before restarting the app.
+Grok Bot writes `briefing-YYYY-MM-DD.md` to the "AI Briefings" Google Drive folder. The droplet pulls it: `briefing-pull.timer` runs `ingest/pull.js` as `briefing-pull` at 8:00 AM ET and hourly at :10. It authenticates with a service account (`/etc/ai-briefing/drive-key.json`) that has no project roles, only a Viewer share on that folder. New or changed files are validated strictly (`ingest/briefing-md.js`; off-format files are logged and skipped) and upserted one date at a time into a copy of `briefing.db` that is then renamed into place (the previous file is kept as `briefing.db.prev`). The egress firewall limits `briefing-pull` to DNS and HTTPS. `npm run deploy` also runs it once, before restarting the app.
 
 The database stores markdown (`*_md` columns), never HTML. The app renders it with `src/lib/inline-md.js` and `Markdown.svelte` as Svelte text: only links (plain `https` URLs), bold and code become markup, and there is no `{@html}`, so a bad row can look wrong but can't inject anything. The CSP in `vite.config.ts` is the backstop.
 
@@ -45,7 +49,7 @@ journalctl -u briefing-pull                           # run history
 
 `npm test` covers the parser and the DB writes. Outage checks are paused (`src/lib/outages.ts`) until they have their own feed.
 
-Grok Bot used to push a whole `briefing.db` over SSH as `newsbot`. That path is gone: the upload shell, the account and `/opt/ai-briefing/docs` were removed from CT 101 on 2026-10-13.
+Grok Bot used to push a whole `briefing.db` over SSH as `newsbot`. That path is gone: the upload shell, the account and `/opt/ai-briefing/docs` were removed from CT 101, the homelab container that hosted the site before the droplet, on 2026-10-13.
 
 ## Schema migrations
 
@@ -61,6 +65,6 @@ To change the schema:
 
 Checks:
 
-- CI (`ingest/check-migrations.sh`) fails if a PR edits, renames or deletes a migration that's already on `main`. Those have run on CT 101 and won't run again.
+- CI (`ingest/check-migrations.sh`) fails if a PR edits, renames or deletes a migration that's already on `main`. Those have run in production and won't run again.
 - `npm test` runs every migration on an empty database, then `verify()`: SQLite's `integrity_check`, `foreign_key_check`, and an FTS integrity check of `items_fts` against `items`. It also fails if `schema.ts` and the migrated tables disagree on column names, types or `NOT NULL`.
-- On CT 101, `briefing-pull` runs the same `verify()` on the migrated copy before swapping it in, so a migration that breaks real data never goes live. The pull fails and the old database stays.
+- In production, `briefing-pull` runs the same `verify()` on the migrated copy before swapping it in, so a migration that breaks real data never goes live. The pull fails and the old database stays.

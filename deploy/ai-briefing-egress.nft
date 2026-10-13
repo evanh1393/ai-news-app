@@ -1,8 +1,8 @@
 # Loaded as root (ExecStartPre) by ai-briefing-app.service and briefing-pull.service.
 # The app only answers Caddy over loopback, and Caddy only proxies to the app, so block every
-# other outbound connection from the briefing and caddy users: tailnet, LAN and internet.
-# systemd's IPAddressDeny would do this, but CT 101 is an LXC container without cgroup BPF,
-# where systemd silently ignores it.
+# other outbound connection from the briefing and caddy users. systemd's IPAddressDeny would also
+# work on the droplet, but this was written for an LXC container (CT 101) where systemd ignores it,
+# and it also covers briefing-pull's port allowlist.
 # briefing-pull only needs DNS and HTTPS to Google (oauth2/www.googleapis.com). Google's IPs move,
 # so this pins ports, not addresses.
 destroy table inet ai_briefing_egress

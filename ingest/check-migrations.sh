@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Fail if a migration that exists at <base> was edited, renamed or deleted. Merged migrations have
-# already run on CT 101 and won't run again, so a schema change always goes in a new NNNN_*.sql.
+# already run in production and won't run again, so a schema change always goes in a new NNNN_*.sql.
 # CI runs this against the PR base (or the previous main); locally: bash ingest/check-migrations.sh origin/main
 set -euo pipefail
 
