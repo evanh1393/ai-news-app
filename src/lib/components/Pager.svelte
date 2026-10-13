@@ -2,20 +2,21 @@
 	let { page, pages }: { page: number; pages: number } = $props();
 
 	const href = (n: number) => (n === 1 ? '?' : `?page=${n}`);
+	const btn = 'btn h-auto rounded-field border-base-300 bg-base-200 px-5 py-3 font-medium shadow-none hover:bg-primary hover:text-primary-content';
 </script>
 
 {#if pages > 1}
-	<nav class="join mt-3 flex justify-center" aria-label="Pagination">
+	<nav class="mt-6 flex items-center justify-between gap-4" aria-label="Pagination">
 		{#if page > 1}
-			<a class="btn join-item" href={href(page - 1)} rel="prev">« Newer</a>
+			<a class={btn} href={href(page - 1)} rel="prev">← Newer</a>
 		{:else}
-			<button class="btn join-item" disabled>« Newer</button>
+			<span class="{btn} invisible" aria-hidden="true">← Newer</span>
 		{/if}
-		<span class="btn join-item pointer-events-none">Page {page} of {pages}</span>
+		<span class="text-sm text-base-content/50 tabular-nums">Page {page} of {pages}</span>
 		{#if page < pages}
-			<a class="btn join-item" href={href(page + 1)} rel="next">Older »</a>
+			<a class={btn} href={href(page + 1)} rel="next">Older →</a>
 		{:else}
-			<button class="btn join-item" disabled>Older »</button>
+			<span class="{btn} invisible" aria-hidden="true">Older →</span>
 		{/if}
 	</nav>
 {/if}
