@@ -35,7 +35,17 @@ Repo secrets: `TS_OAUTH_CLIENT_ID` and `TS_OAUTH_SECRET`, from a Tailscale OAuth
 
 Grok Bot writes `briefing-YYYY-MM-DD.md` to the "AI Briefings" Google Drive folder. CT 101 pulls it: `briefing-pull.timer` runs `ingest/pull.js` as `briefing-pull` at 7:40 AM ET and hourly at :10. It authenticates with a service account (`/etc/ai-briefing/drive-key.json`) that has no project roles, only a Viewer share on that folder. New or changed files are validated strictly (`ingest/briefing-md.js`; off-format files are logged and skipped) and upserted one date at a time into a copy of `briefing.db` that is then renamed into place (the previous file is kept as `briefing.db.prev`). The egress firewall limits `briefing-pull` to DNS and HTTPS. `npm run deploy` also runs it once, before restarting the app.
 
-The database stores markdown (`*_md` columns), never HTML. The app renders it with `src/lib/inline-md.js` and `Markdown.svelte` as Svelte text: only links (plain `https` URLs), bold and code become markup, and there is no `{@html}`, so a bad row can look wrong but can't inject anything. The CSP in `vite.config.ts` is the backstop. `ingest/apply.js` owns the schema: the first pull after the markdown change migrated Grok Bot's `*_html` columns and re-ingested every day from Drive.
+The database stores markdown (`*_md` columns), never HTML. The app renders it with `src/lib/inline-md.js` and `Markdown.svelte` as Svelte text: only links (plain `https` URLs), bold and code become markup, and there is no `{@html}`, so a bad row can look wrong but can't inject anything. The CSP in `vite.config.ts` is the backstop. ## Schema migrations
+
+The schema is the numbered SQL files in `ingest/migrations/`. `PRAGMA user_version` records the last one applied. `0001_baseline.sql` is the schema as of 2026-10-13; databases from before migrations existed were adopted at version 1 without running it.
+
+To change the schema:
+
+1. Add `ingest/migrations/NNNN_short_name.sql` with the next number. Plain SQL, no `BEGIN`/`COMMIT`; the runner wraps every pending file in one transaction. SQLite's `ALTER TABLE` is limited, so bigger changes rebuild the table.
+2. Update `src/lib/server/schema.ts` to match, and the writes in `ingest/apply.js` if columns changed.
+3. `npm test` builds a fresh database from every migration.
+
+`briefing-pull` applies pending migrations on its copy of the database before ingesting, and commits even if there are no new Drive files. `npm run deploy` runs it before restarting the app, so the app never reads a schema older than its code. Write migrations so the old app still works with the new schema if you can (add columns before dropping them), because a failed deploy can leave the old app running on the migrated database. To try one locally, `npm run db:migrate` applies pending migrations to `data/briefing.db` (`npm run db:pull` gets a fresh copy first).
 
 ```sh
 sudo -u briefing-pull node ingest/pull.js --check     # list the folder, no DB access
