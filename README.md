@@ -31,6 +31,8 @@ Repo secrets: `DEPLOY_SSH_KEY` (the CI key's private half; its only copy), and `
 
 Visitors reach `eh-ai-blast.app` through Cloudflare, which forwards over a Cloudflare Tunnel to `cloudflared` on the droplet, then to Caddy on `127.0.0.1:8080` and the app on `:3000`. The tunnel is an outbound connection, so the droplet takes no inbound web traffic. Its only open port is SSH, which the DigitalOcean firewall (`infra/main.tf`) limits to the home IP; root login and passwords are off. CI reaches SSH through the tunnel instead (see CI/CD). Cloudflare rate-limits `/search` per IP (`infra/cloudflare.tf`).
 
+Error pages: the app renders its own errors (404, 400, 500…) in the site layout with `src/routes/+error.svelte`, falling back to the static `src/error.html` if the layout itself fails. When the app is down or restarting, Caddy answers 503 with `deploy/errors/unavailable.html` (installed to `/etc/caddy/errors/` by `npm run deploy`). Errors raised before the request reaches Caddy (the search rate limit's 429, a tunnel outage) are still Cloudflare's own pages.
+
 `deploy/provision.sh` set up the droplet once (packages, users, directories, `ufw`, sshd). After it, `cloudflared service install` took the tunnel token from `terraform output -raw tunnel_token`, and `/etc/ai-briefing/drive-key.json` was copied over by hand.
 
 ## Hardening on the droplet

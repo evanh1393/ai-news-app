@@ -1,0 +1,27 @@
+<!doctype html>
+<!-- Served by Caddy when the app on :3000 is down or not answering (see deploy/Caddyfile). Matches
+     src/error.html, the app's own fallback. -->
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Back soon · AI Briefing</title>
+		<style>
+			body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 1.5rem; box-sizing: border-box;
+				background: #f3f3f3; color: #000; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; letter-spacing: -0.01em; }
+			main { max-width: 40rem; }
+			.code { font-family: ui-monospace, monospace; font-size: 0.875rem; color: rgb(0 0 0 / 0.45); }
+			h1 { margin: 0.75rem 0 0; font: italic 400 clamp(2.5rem, 7vw, 3.75rem)/1.05 Georgia, serif; }
+			p { font-size: 1.125rem; color: rgb(0 0 0 / 0.6); }
+			a { display: inline-block; margin-top: 1.5rem; padding: 0.6rem 1.1rem; border-radius: 1rem; background: #000; color: #fff; text-decoration: none; font-weight: 500; }
+		</style>
+	</head>
+	<body>
+		<main>
+			<div class="code">Error 503</div>
+			<h1>Back in a moment.</h1>
+			<p>The site is briefly unavailable, usually for a deploy. Try again in a minute.</p>
+			<a href="">Try again</a>
+		</main>
+	</body>
+</html>
