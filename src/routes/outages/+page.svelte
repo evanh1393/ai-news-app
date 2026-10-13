@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Pager from '#lib/components/Pager.svelte';
 	import { fmtTime } from '#lib/format.js';
 
 	let { data } = $props();
@@ -26,3 +27,5 @@
 		{/each}
 	</div>
 </div>
+
+<Pager page={data.page} pages={data.pages} />

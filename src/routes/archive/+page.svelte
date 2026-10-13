@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Pager from '#lib/components/Pager.svelte';
 	let { data } = $props();
 </script>
 
@@ -17,3 +18,5 @@
 		<li class="p-3">No briefings yet.</li>
 	{/each}
 </ul>
+
+<Pager page={data.page} pages={data.pages} />
