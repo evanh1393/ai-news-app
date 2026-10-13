@@ -38,13 +38,19 @@ if [[ "$lock_local" != "$lock_remote" ]]; then
 fi
 
 echo "syncing source"
+# From a laptop the checkout has more than git does: honor .gitignore (Terraform state with the tunnel
+# token, data/briefing.db, .env) and skip what the server never runs (infra/, CI config).
 rsync -rl --delete \
+  --filter=':- .gitignore' \
   --exclude '.git/' \
   --exclude 'node_modules/' \
   --exclude '.svelte-kit/' \
   --exclude 'build/' \
   --exclude 'deploy/' \
   --exclude '.npm/' \
+  --exclude 'infra/' \
+  --exclude '.github/' \
+  --exclude '.claude/' \
   "$root/" "${host}:${remote}/"
 
 if [[ "$need_deps" == 1 ]]; then
