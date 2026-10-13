@@ -5,3 +5,5 @@ node_modules
 .env
 .env.*
 !.env.example
+# Local copy of CT 101's briefing.db for `npm run dev`.
+/data

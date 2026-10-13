@@ -1,8 +1,94 @@
 @import 'tailwindcss';
+@import '@fontsource-variable/inter';
 @plugin '@tailwindcss/typography';
-/* Dark is the default; the header toggle switches to light and saves it in localStorage. */
+/* Built-in themes off: only the two below exist, and the OS dark preference doesn't switch them. */
 @plugin 'daisyui' {
-	themes:
-		light,
-		dark --default;
+	themes: false;
+}
+
+/* Glacier-inspired themes (theglacierapp.com): flat gray page, white cards, black accents, big radii.
+   Light is the default; the header toggle switches to dark and saves it in localStorage. */
+@plugin 'daisyui/theme' {
+	name: 'light';
+	default: true;
+	color-scheme: light;
+	--color-base-100: #f3f3f3;
+	--color-base-200: #ffffff;
+	--color-base-300: #e8e8e8;
+	--color-base-content: #000000;
+	--color-primary: #000000;
+	--color-primary-content: #ffffff;
+	--color-secondary: #1b191c;
+	--color-secondary-content: #ffffff;
+	--color-accent: #1b191c;
+	--color-accent-content: #ffffff;
+	--color-neutral: #1b191c;
+	--color-neutral-content: #f3f3f3;
+	--color-info: #2f6fde;
+	--color-info-content: #ffffff;
+	--color-success: #1f9d55;
+	--color-success-content: #ffffff;
+	--color-warning: #e8a317;
+	--color-warning-content: #000000;
+	--color-error: #e0392b;
+	--color-error-content: #ffffff;
+	--radius-selector: 1rem;
+	--radius-field: 1rem;
+	--radius-box: 1.5rem;
+	--size-selector: 0.25rem;
+	--size-field: 0.25rem;
+	--border: 1px;
+	--depth: 0;
+	--noise: 0;
+}
+
+@plugin 'daisyui/theme' {
+	name: 'dark';
+	prefersdark: false;
+	color-scheme: dark;
+	--color-base-100: #0e0d0f;
+	--color-base-200: #1b191c;
+	--color-base-300: #2c2a2d;
+	--color-base-content: #f3f3f3;
+	--color-primary: #ffffff;
+	--color-primary-content: #000000;
+	--color-secondary: #e8e8e8;
+	--color-secondary-content: #000000;
+	--color-accent: #e8e8e8;
+	--color-accent-content: #000000;
+	--color-neutral: #e8e8e8;
+	--color-neutral-content: #1b191c;
+	--color-info: #6c9cf0;
+	--color-info-content: #000000;
+	--color-success: #3cc47c;
+	--color-success-content: #000000;
+	--color-warning: #f0b84a;
+	--color-warning-content: #000000;
+	--color-error: #f2665a;
+	--color-error-content: #000000;
+	--radius-selector: 1rem;
+	--radius-field: 1rem;
+	--radius-box: 1.5rem;
+	--size-selector: 0.25rem;
+	--size-field: 0.25rem;
+	--border: 1px;
+	--depth: 0;
+	--noise: 0;
+}
+
+@theme {
+	--font-sans: 'Inter Variable', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+@layer base {
+	body {
+		letter-spacing: -0.01em;
+	}
+	h1,
+	h2,
+	h3,
+	h4 {
+		font-weight: 400;
+		letter-spacing: -0.03em;
+	}
 }
