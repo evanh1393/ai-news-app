@@ -1,110 +1,56 @@
 // Writes parsed briefings into briefing.db. Each date is replaced as a whole inside one transaction,
 // so re-ingesting a day is safe and other days' rows (and item IDs) are untouched.
+import { readdirSync, readFileSync } from 'node:fs';
 
-// Which Drive files have been ingested, so unchanged files are skipped. Created on first run.
-const DRIVE_FILES = `CREATE TABLE IF NOT EXISTS drive_files (
-	name TEXT PRIMARY KEY,
-	file_id TEXT NOT NULL,
-	md5 TEXT NOT NULL,
-	ingested_at TEXT NOT NULL
-)`;
+// Schema changes are numbered SQL files, applied in order. PRAGMA user_version is the last one applied.
+const MIGRATIONS_DIR = new URL('./migrations/', import.meta.url);
 
-/**
- * How to keep items_fts in sync, read from the database itself (Grok Bot's schema.sql isn't in
- * this repo): null when there's no FTS table or triggers on items already maintain it.
- */
-function ftsPlan(db) {
-	const fts = db.prepare("SELECT sql FROM sqlite_master WHERE name = 'items_fts'").get();
-	if (!fts) return null;
-	const triggers = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'items'").get();
-	if (triggers) return null;
-	const cols = db
-		.prepare("SELECT name FROM pragma_table_info('items_fts')")
-		.all()
-		.map((c) => c.name);
-	const itemCols = new Set(
-		db
-			.prepare("SELECT name FROM pragma_table_info('items')")
-			.all()
-			.map((c) => c.name)
-	);
-	const missing = cols.filter((c) => !itemCols.has(c));
-	if (missing.length) throw new Error(`items_fts columns not in items: ${missing.join(', ')}`);
-	// External-content and contentless tables can't be DELETEd from; they take a 'delete' command
-	// with the old values instead.
-	const external = /\bcontent\s*=/i.test(fts.sql);
-	const list = cols.join(', ');
-	return {
-		remove: external
-			? db.prepare(
-					`INSERT INTO items_fts(items_fts, rowid, ${list}) SELECT 'delete', id, ${list} FROM items WHERE briefing_date = ?`
-				)
-			: db.prepare('DELETE FROM items_fts WHERE rowid IN (SELECT id FROM items WHERE briefing_date = ?)'),
-		add: db.prepare(`INSERT INTO items_fts(rowid, ${list}) SELECT id, ${list} FROM items WHERE briefing_date = ?`)
-	};
-}
-
-/** True while the database still has the rendered *_html columns from Grok Bot's old schema. */
-export function needsMigration(db) {
-	return db.prepare("SELECT 1 FROM pragma_table_info('items') WHERE name = 'body_html'").get() !== undefined;
-}
-
-// Grok Bot's old sources.value held HTML: escaped text plus <code>…</code>, nothing else.
-const SOURCE_HTML = /^(?:[^<&]|&(?:lt|gt|amp|quot|#39);|<code>[^<]*<\/code>)*$/;
-const ENTITIES = { '&lt;': '<', '&gt;': '>', '&amp;': '&', '&quot;': '"', '&#39;': "'" };
-const unescapeHtml = (s) => s.replace(/&(?:lt|gt|amp|quot|#39);/g, (e) => ENTITIES[e]);
-
-/** One sources value from HTML to markdown, refusing anything that wouldn't convert exactly. */
-export function sourceToMarkdown(html) {
-	if (!SOURCE_HTML.test(html)) throw new Error(`sources value isn't plain text and <code>: ${html}`);
-	return html
-		.split(/(<code>[^<]*<\/code>)/)
-		.map((part, i) => {
-			if (i % 2) return `\`${unescapeHtml(part.slice(6, -7))}\``;
-			const text = unescapeHtml(part);
-			if (/`|\*\*|\]\(/.test(text)) throw new Error(`sources value would read as markdown: ${html}`);
-			return text;
-		})
-		.join('');
+/** [{ version, name, sql }] from ingest/migrations, checked to be numbered 1, 2, 3, … */
+export function migrations() {
+	return readdirSync(MIGRATIONS_DIR)
+		.filter((f) => f.endsWith('.sql'))
+		.sort()
+		.map((name, i) => {
+			const version = Number(/^(\d{4})_[\w-]+\.sql$/.exec(name)?.[1]);
+			if (version !== i + 1) throw new Error(`migration ${name} should be numbered ${String(i + 1).padStart(4, '0')}`);
+			return { version, name, sql: readFileSync(new URL(name, MIGRATIONS_DIR), 'utf8') };
+		});
 }
 
 /**
- * Move from rendered *_html columns to markdown *_md columns. Briefing rows can't be converted back,
- * so this clears drive_files and the caller must re-ingest every day in the same commit; pull.js
- * does that because ingestedFiles() reports nothing while needsMigration() is true.
+ * Migrations not yet applied. A database from before migrations existed (version 0 with tables)
+ * already matches 0001_baseline.sql, so it starts at 1 once we've checked that it has the markdown columns.
  */
-function migrate(db) {
-	if (!needsMigration(db)) return;
-	db.exec(`
-		ALTER TABLE briefings ADD COLUMN intro_md TEXT;
-		ALTER TABLE briefings DROP COLUMN intro_html;
-		ALTER TABLE sections ADD COLUMN note_md TEXT;
-		ALTER TABLE sections DROP COLUMN note_html;
-		ALTER TABLE items ADD COLUMN body_md TEXT NOT NULL DEFAULT '';
-		ALTER TABLE items DROP COLUMN body_html;
-		DELETE FROM drive_files;
-	`);
-	if (db.prepare("SELECT 1 FROM pragma_table_info('sources') WHERE name = 'value'").get()) {
-		db.exec('ALTER TABLE sources RENAME COLUMN value TO value_md');
-		const set = db.prepare('UPDATE sources SET value_md = ? WHERE id = ?');
-		for (const r of db.prepare('SELECT id, value_md FROM sources').all()) set.run(sourceToMarkdown(r.value_md), r.id);
+export function pendingMigrations(db) {
+	let version = db.pragma('user_version', { simple: true });
+	if (version === 0 && db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'briefings'").get()) {
+		if (!db.prepare("SELECT 1 FROM pragma_table_info('items') WHERE name = 'body_md'").get())
+			throw new Error('database predates the markdown schema; restore a newer copy');
+		version = 1;
 	}
+	return migrations().filter((m) => m.version > version);
 }
 
-/** Days whose items have no markdown, i.e. weren't re-ingested after the migration. */
-export function staleDates(db) {
-	return db
-		.prepare("SELECT DISTINCT briefing_date FROM items WHERE body_md = '' ORDER BY briefing_date")
-		.all()
-		.map((r) => r.briefing_date);
+/** Bring the schema up to date in one transaction. Returns the names of the migrations applied. */
+export function migrate(db) {
+	return db.transaction(() => {
+		const pending = pendingMigrations(db);
+		for (const m of pending) db.exec(m.sql);
+		const latest = migrations().at(-1).version;
+		if (db.pragma('user_version', { simple: true }) !== latest) db.pragma(`user_version = ${latest}`);
+		return pending.map((m) => m.name);
+	})();
 }
 
 /** Prepare statements once per connection; returns { applyAll, ingested }. */
 export function openWriter(db) {
-	db.exec(DRIVE_FILES);
-	db.transaction(migrate)(db);
-	const fts = ftsPlan(db);
+	migrate(db);
 	const q = {
+		// items_fts is external-content (0001_baseline.sql): rows leave it via a 'delete' command with the old values.
+		ftsRemove: db.prepare(
+			"INSERT INTO items_fts(items_fts, rowid, headline, body) SELECT 'delete', id, headline, body FROM items WHERE briefing_date = ?"
+		),
+		ftsAdd: db.prepare('INSERT INTO items_fts(rowid, headline, body) SELECT id, headline, body FROM items WHERE briefing_date = ?'),
 		delLinks: db.prepare('DELETE FROM item_links WHERE item_id IN (SELECT id FROM items WHERE briefing_date = ?)'),
 		delItems: db.prepare('DELETE FROM items WHERE briefing_date = ?'),
 		delSections: db.prepare('DELETE FROM sections WHERE briefing_date = ?'),
@@ -125,7 +71,7 @@ export function openWriter(db) {
 
 	function applyOne(p, now) {
 		const d = p.briefing.date;
-		fts?.remove.run(d);
+		q.ftsRemove.run(d);
 		q.delLinks.run(d);
 		q.delItems.run(d);
 		q.delSections.run(d);
@@ -137,7 +83,7 @@ export function openWriter(db) {
 			const id = q.item.run(d, i.category, i.position, i.headline, i.body, i.body_md, i.is_outage ? 1 : 0).lastInsertRowid;
 			for (const l of i.links) q.link.run(id, l.label, l.url);
 		}
-		fts?.add.run(d);
+		q.ftsAdd.run(d);
 	}
 
 	return {

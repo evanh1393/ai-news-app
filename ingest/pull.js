@@ -6,6 +6,7 @@
 //   node ingest/pull.js --check      list the folder; touches no database
 //   node ingest/pull.js --dry-run    download and validate new/changed files; writes nothing
 //   node ingest/pull.js --file X.md  validate a local file; no network
+//   node ingest/pull.js --migrate    apply pending schema migrations only; no network
 //   node ingest/pull.js              ingest new/changed files
 //
 // Writes go to a copy of the database that is swapped in with rename(), so the app (which opens a
@@ -15,7 +16,7 @@ import { createSign } from 'node:crypto';
 import { existsSync, linkSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import Database from 'better-sqlite3';
-import { needsMigration, openWriter, staleDates } from './apply.js';
+import { openWriter, pendingMigrations } from './apply.js';
 import { FormatError, parseBriefing } from './briefing-md.js';
 
 const KEY_PATH = process.env.DRIVE_KEY ?? '/etc/ai-briefing/drive-key.json';
@@ -114,19 +115,22 @@ async function download(token, f) {
 	return buf.toString('utf8');
 }
 
-/** name -> md5 already ingested. Read-only; empty before the first ingest and before the *_md migration. */
-function ingestedFiles() {
-	if (!existsSync(DB_PATH)) return new Map();
+/** Read-only look at the live database: { done: name -> md5 already ingested, pending: migration names }. */
+function liveState() {
+	if (!existsSync(DB_PATH)) return { done: new Map(), pending: [] };
 	const db = new Database(DB_PATH, { readonly: true, fileMustExist: true });
 	try {
 		const has = db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'drive_files'").get();
-		return has && !needsMigration(db) ? new Map(db.prepare('SELECT name, md5 FROM drive_files').all().map((r) => [r.name, r.md5])) : new Map();
+		return {
+			done: has ? new Map(db.prepare('SELECT name, md5 FROM drive_files').all().map((r) => [r.name, r.md5])) : new Map(),
+			pending: pendingMigrations(db).map((m) => m.name)
+		};
 	} finally {
 		db.close();
 	}
 }
 
-/** Apply entries to a copy of the database, check it, and swap it in. */
+/** Migrate a copy of the database, apply entries to it, check it, and swap it in. */
 async function commit(entries) {
 	const dir = dirname(DB_PATH);
 	const tmp = join(dir, `.${basename(DB_PATH)}.pull`);
@@ -141,8 +145,6 @@ async function commit(entries) {
 	const db = new Database(tmp);
 	try {
 		openWriter(db).applyAll(entries);
-		const stale = staleDates(db);
-		if (stale.length) throw new Error(`not re-ingested after the markdown migration: ${stale.join(', ')}`);
 		const check = db.pragma('quick_check', { simple: true });
 		if (check !== 'ok') throw new Error(`quick_check on new database: ${check}`);
 	} catch (e) {
@@ -192,13 +194,20 @@ async function main() {
 		console.log(`${basename(path)}: ok, ${p.sections.length} sections, ${p.items.length} items`);
 		return 0;
 	}
+	if (mode === '--migrate') {
+		const { pending } = liveState();
+		if (pending.length) await commit([]);
+		console.log(pending.length ? `migrated: ${pending.join(', ')}` : 'schema up to date');
+		return 0;
+	}
 	if (!['ingest', '--check', '--dry-run'].includes(mode)) throw new Error(`unknown option ${mode}`);
 
 	const { token, email } = await accessToken();
 	if (mode === '--check') return check(token, email);
 	const files = briefingFiles(await listFolder(token));
 
-	const done = ingestedFiles();
+	const { done, pending } = liveState();
+	if (pending.length) console.log(`pending migrations: ${pending.join(', ')}`);
 	const changed = files.filter((f) => done.get(f.name) !== f.md5Checksum);
 	const entries = [];
 	let failed = 0;
@@ -214,13 +223,13 @@ async function main() {
 		}
 	}
 
-	if (!entries.length) {
+	if (!entries.length && !pending.length) {
 		console.log(changed.length ? 'nothing valid to ingest' : 'up to date');
 	} else if (mode === '--dry-run') {
-		console.log(`dry run: would ingest ${entries.length} file(s)`);
+		console.log(`dry run: would migrate ${pending.length} and ingest ${entries.length} file(s)`);
 	} else {
 		await commit(entries);
-		console.log(`ingested ${entries.length} file(s)`);
+		console.log(`migrated ${pending.length}, ingested ${entries.length} file(s)`);
 	}
 	return failed ? 1 : 0;
 }

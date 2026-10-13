@@ -1,7 +1,7 @@
-// Drizzle tables for /opt/ai-briefing/data/briefing.db. Grok Bot created the schema; briefing-pull now
-// writes it and ingest/apply.js migrates it. This file only describes it for typed reads, so never
-// generate or run Drizzle migrations against it. *_md columns hold inline markdown (src/lib/inline-md.js).
-// items_fts (FTS5) isn't modelled; search() queries it with raw SQL.
+// Drizzle tables for /opt/ai-briefing/data/briefing.db. The schema lives in ingest/migrations/*.sql;
+// this file only mirrors it for typed reads, so update it alongside each migration and never generate
+// or run Drizzle migrations against it. *_md columns hold inline markdown (src/lib/inline-md.js).
+// items_fts (FTS5) and drive_files aren't modelled; search() queries items_fts with raw SQL.
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 export const briefings = sqliteTable('briefings', {
