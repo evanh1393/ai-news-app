@@ -77,9 +77,6 @@ ssh "$host" 'set -euo pipefail
   rm -f /tmp/Caddyfile /tmp/ai-briefing-app.service /tmp/ai-briefing-egress.nft \
     /tmp/briefing-pull.service /tmp/briefing-pull.timer
   sudo systemctl daemon-reload
-  # Retired DB-push path: Grok Bot used to upload briefing.db as newsbot. No-ops once done.
-  sudo rm -f /usr/local/sbin/briefing-upload
-  if id newsbot >/dev/null 2>&1; then sudo usermod --lock --shell /usr/sbin/nologin newsbot; fi
   # Pull before restarting, so the new app never reads a schema older than its code (ingest/apply.js
   # migrates it). A rejected Drive file makes this exit 1 after ingesting the rest, so check the page instead.
   sudo systemctl start briefing-pull.service || journalctl -u briefing-pull -n 20 --no-pager >&2

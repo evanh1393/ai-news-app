@@ -45,4 +45,4 @@ journalctl -u briefing-pull                           # run history
 
 `npm test` covers the parser and the DB writes. Outage checks are paused (`src/lib/outages.ts`) until they have their own feed.
 
-Grok Bot used to push a whole `briefing.db` over SSH as `newsbot`. That path is gone: `npm run deploy` removes its upload shell and locks the account.
+Grok Bot used to push a whole `briefing.db` over SSH as `newsbot`. That path is gone: the upload shell, the account and `/opt/ai-briefing/docs` were removed from CT 101 on 2026-10-13.
