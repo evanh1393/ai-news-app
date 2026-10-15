@@ -61,7 +61,8 @@ resource "cloudflare_dns_record" "apex" {
 
 # The Free plan allows one rate-limiting rule: path-only match, per IP (and data center), 10 s
 # windows, 10 s block. Search is the only route whose cost depends on input. The search form
-# navigates client-side, so its requests arrive as /search/__data.json.
+# navigates client-side, so its requests arrive as /search/__data.json. /api/v1/search runs the
+# same query and shares the budget.
 resource "cloudflare_ruleset" "rate_limit" {
   zone_id = data.cloudflare_zone.site.zone_id
   name    = "Rate limit search"
@@ -71,7 +72,7 @@ resource "cloudflare_ruleset" "rate_limit" {
   rules = [
     {
       description = "Search: 20 requests per 10 s per IP"
-      expression  = "(http.request.uri.path in {\"/search\" \"/search/__data.json\"})"
+      expression  = "(http.request.uri.path in {\"/search\" \"/search/__data.json\" \"/api/v1/search\"})"
       action      = "block"
       ratelimit = {
         characteristics     = ["cf.colo.id", "ip.src"]

@@ -2,7 +2,7 @@
 // briefing-pull replaces the file atomically (new inode) when it ingests, so we open a fresh
 // connection per query batch. Opening SQLite read-only is cheap at this size.
 import Database from 'better-sqlite3';
-import { asc, count, desc, eq, getTableColumns, like, or, sql } from 'drizzle-orm';
+import { asc, count, desc, eq, getTableColumns, inArray, or, sql, type AnyColumn } from 'drizzle-orm';
 import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { BRIEFING_DB } from '$app/env/private';
 import * as schema from './schema';
@@ -30,7 +30,7 @@ export interface BriefingSummary extends Briefing {
 }
 
 export interface FullBriefing extends Briefing {
-	outage: Item | undefined;
+	outage: (Item & { links: Link[] }) | undefined;
 	sections: (Section & { items: (Item & { links: Link[] })[] })[];
 }
 
@@ -109,6 +109,12 @@ export function listSources(): Source[] {
 	return withDb((db) => db.select().from(sources).orderBy(asc(sources.position)).all());
 }
 
+/** The links of the given items, e.g. search hits. */
+export function linksFor(ids: number[]): Link[] {
+	if (!ids.length) return [];
+	return withDb((db) => db.select().from(itemLinks).where(inArray(itemLinks.item_id, ids)).all());
+}
+
 export interface SearchHit extends Item {
 	snippet: string;
 }
@@ -123,11 +129,13 @@ export function search(q: string, limit = 50): SearchHit[] {
 	if (!terms.length) return [];
 	return withDb((db) => {
 		if (metaValue(db, 'fts') !== '1') {
-			const pattern = `%${q}%`;
+			// Escape LIKE's wildcards so "%" or "_" in a query match literally.
+			const pattern = `%${q.replace(/[\\%_]/g, '\\$&')}%`;
+			const matches = (col: AnyColumn) => sql`${col} LIKE ${pattern} ESCAPE '\\'`;
 			return db
 				.select({ ...getTableColumns(items), snippet: sql<string>`substr(${items.body}, 1, 200)` })
 				.from(items)
-				.where(or(like(items.headline, pattern), like(items.body, pattern)))
+				.where(or(matches(items.headline), matches(items.body)))
 				.orderBy(desc(items.briefing_date), asc(items.position))
 				.limit(limit)
 				.all();
