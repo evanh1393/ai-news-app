@@ -76,3 +76,45 @@ export function plainText(src) {
 		)
 		.join('\n');
 }
+
+/** A news item's line: "**Headline** — summary", with an em dash, en dash, hyphen or colon (or nothing) between. */
+export const ITEM = /^\*\*(.+?)\*\*\s*(?:[—–:-]\s*)?(.*)$/;
+
+/**
+ * Inline markdown as plain text for the API, where links travel separately as { label, url }:
+ * formatting dropped, each link reduced to its label, and the run of links that ends a line (the
+ * "[Reuters](…) [AP](…)" citations, maybe split by , ; | or ·) dropped unless nothing else is on the
+ * line. Stray "**" goes too. Lines stay lines; spaces collapse.
+ * @param {string} src
+ * @param {{ citations?: boolean }} [opts] citations: keep trailing links' labels too (sources, intros)
+ */
+export function apiText(src, { citations = false } = {}) {
+	return src
+		.split('\n')
+		.map((line) => {
+			const tokens = inlineTokens(line);
+			let end = tokens.length;
+			if (!citations) {
+				while (end && (tokens[end - 1].type === 'link' || /^[\s,;|·]*$/.test(tokens[end - 1].text))) end--;
+				if (!tokens.slice(0, end).some((t) => t.text.trim())) end = tokens.length;
+			}
+			return tokens
+				.slice(0, end)
+				.map((t) => (t.type === 'text' ? t.text.replace(/\*\*/g, '') : t.text))
+				.join('')
+				.replace(/\s+/g, ' ')
+				.trim();
+		})
+		.join('\n');
+}
+
+/**
+ * An item's plain body (items.summary): the text after its bold headline and separator, by apiText's
+ * rules. The outage item has no headline, so it's all of its lines.
+ * @param {string} bodyMd items.body_md
+ * @param {boolean} isOutage
+ */
+export function itemSummary(bodyMd, isOutage) {
+	const m = isOutage ? null : ITEM.exec(bodyMd);
+	return apiText(m ? m[2] : bodyMd);
+}

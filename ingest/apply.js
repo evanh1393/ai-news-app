@@ -2,6 +2,7 @@
 // so re-ingesting a day is safe and other days' rows (and item IDs) are untouched. sources.md
 // replaces the sources table the same way.
 import { readdirSync, readFileSync } from 'node:fs';
+import { itemSummary } from '../src/lib/inline-md.js';
 
 /**
  * @typedef {import('better-sqlite3').Database} Db
@@ -42,6 +43,22 @@ export function pendingMigrations(db) {
 }
 
 /**
+ * Data steps SQL can't do, by migration version: each runs right after that migration's SQL, in the
+ * same transaction. Keep them pure functions of what's already in the database.
+ * @type {Record<number, (db: Db) => void>}
+ */
+export const AFTER_MIGRATION = {
+	// 0003_item_summary.sql: fill items.summary from body_md.
+	3: (db) => {
+		const set = db.prepare('UPDATE items SET summary = ? WHERE id = ?');
+		const rows = /** @type {{ id: number, body_md: string, is_outage: number }[]} */ (
+			db.prepare('SELECT id, body_md, is_outage FROM items').all()
+		);
+		for (const r of rows) set.run(itemSummary(r.body_md, !!r.is_outage), r.id);
+	}
+};
+
+/**
  * Bring the schema up to date in one transaction. Returns the names of the migrations applied.
  * @param {Db} db
  * @returns {string[]}
@@ -49,7 +66,10 @@ export function pendingMigrations(db) {
 export function migrate(db) {
 	return db.transaction(() => {
 		const pending = pendingMigrations(db);
-		for (const m of pending) db.exec(m.sql);
+		for (const m of pending) {
+			db.exec(m.sql);
+			AFTER_MIGRATION[m.version]?.(db);
+		}
 		const latest = migrations().length; // numbered 1..n, checked in migrations()
 		if (Number(db.pragma('user_version', { simple: true })) !== latest) db.pragma(`user_version = ${latest}`);
 		return pending.map((m) => m.name);
@@ -91,7 +111,7 @@ export function openWriter(db) {
 		),
 		section: db.prepare('INSERT INTO sections (briefing_date, position, title, note_md) VALUES (?, ?, ?, ?)'),
 		item: db.prepare(
-			'INSERT INTO items (briefing_date, category, position, headline, body, body_md, is_outage) VALUES (?, ?, ?, ?, ?, ?, ?)'
+			'INSERT INTO items (briefing_date, category, position, headline, body, summary, body_md, is_outage) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
 		),
 		link: db.prepare('INSERT INTO item_links (item_id, label, url) VALUES (?, ?, ?)'),
 		delSources: db.prepare('DELETE FROM sources'),
@@ -117,7 +137,7 @@ export function openWriter(db) {
 		q.briefing.run(d, b.title, b.coverage, b.intro_md, b.outage_alert ? 1 : 0, now);
 		for (const s of p.sections) q.section.run(d, s.position, s.title, s.note_md);
 		for (const i of p.items) {
-			const id = q.item.run(d, i.category, i.position, i.headline, i.body, i.body_md, i.is_outage ? 1 : 0).lastInsertRowid;
+			const id = q.item.run(d, i.category, i.position, i.headline, i.body, i.summary, i.body_md, i.is_outage ? 1 : 0).lastInsertRowid;
 			for (const l of i.links) q.link.run(id, l.label, l.url);
 		}
 		q.ftsAdd.run(d);

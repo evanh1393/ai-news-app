@@ -1,0 +1,16 @@
+-- items.summary: the item's text after its bold headline and separator, as plain text: formatting
+-- dropped, links reduced to their labels, trailing citation links dropped (itemSummary in
+-- src/lib/inline-md.js). The API returns it as the item's body; links stay in item_links.
+-- The outage item has no headline, so its summary is all of its text.
+--
+-- Backfill: SQL can't parse markdown, so ingest/apply.js fills existing rows from body_md with the
+-- same itemSummary(), in this migration's transaction (AFTER_MIGRATION[3]). body_md is the item's
+-- source line verbatim, so the result matches a re-ingest. Forcing a re-ingest by clearing
+-- drive_files was rejected: pull.js reads drive_files from the live, unmigrated database before
+-- migrating, so the first pull would still skip everything and the gap would last until the next
+-- one; a day whose Drive file is gone, or that a stricter parser now rejects, would never be filled
+-- (and a rejected file would be retried and fail the pull every hour); and every day's item IDs and
+-- created_at would change.
+--
+-- NOT NULL DEFAULT '' like body_md, so an older ingest that doesn't know the column can still insert.
+ALTER TABLE items ADD COLUMN summary TEXT NOT NULL DEFAULT '';

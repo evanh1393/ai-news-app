@@ -2,7 +2,7 @@
 // briefing-pull replaces the file atomically (new inode) when it ingests, so we open a fresh
 // connection per query batch. Opening SQLite read-only is cheap at this size.
 import Database from 'better-sqlite3';
-import { asc, count, desc, eq, getTableColumns, or, sql, type AnyColumn } from 'drizzle-orm';
+import { asc, count, desc, eq, getTableColumns, inArray, or, sql, type AnyColumn } from 'drizzle-orm';
 import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { BRIEFING_DB } from '$app/env/private';
 import * as schema from './schema';
@@ -107,6 +107,12 @@ export function outageStatus(): { active: boolean; latest: OutageCheck | undefin
 
 export function listSources(): Source[] {
 	return withDb((db) => db.select().from(sources).orderBy(asc(sources.position)).all());
+}
+
+/** The links of the given items, e.g. search hits. */
+export function linksFor(ids: number[]): Link[] {
+	if (!ids.length) return [];
+	return withDb((db) => db.select().from(itemLinks).where(inArray(itemLinks.item_id, ids)).all());
 }
 
 export interface SearchHit extends Item {
