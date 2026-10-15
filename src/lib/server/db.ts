@@ -140,14 +140,25 @@ export function search(q: string, limit = 50): SearchHit[] {
 				.limit(limit)
 				.all();
 		}
-		// FTS5 isn't expressible in Drizzle's builder: join the virtual table with raw SQL.
-		return db
-			.select({ ...getTableColumns(items), snippet: sql<string>`snippet(items_fts, 1, '[[', ']]', '…', 24)` })
-			.from(sql`items_fts f`)
-			.innerJoin(items, sql`${items.id} = f.rowid`)
-			.where(sql`items_fts MATCH ${terms.join(' ')}`)
-			.orderBy(sql`bm25(items_fts)`)
-			.limit(limit)
-			.all();
+		// Rank and snippet inside FTS, then load only those items. Joining items before ORDER BY … LIMIT
+		// makes SQLite sort every matching row with its full text, which was most of the time for
+		// common words. FTS5 isn't expressible in Drizzle's builder, hence the raw SQL.
+		const top = db.all<{ id: number; snippet: string }>(
+			sql`SELECT rowid AS id, snippet(items_fts, 1, '[[', ']]', '…', 24) AS snippet FROM items_fts
+				WHERE items_fts MATCH ${terms.join(' ')} ORDER BY bm25(items_fts) LIMIT ${limit}`
+		);
+		if (!top.length) return [];
+		const byId = new Map(
+			db
+				.select()
+				.from(items)
+				.where(inArray(items.id, top.map((t) => t.id)))
+				.all()
+				.map((i) => [i.id, i])
+		);
+		return top.flatMap((t) => {
+			const item = byId.get(t.id);
+			return item ? [{ ...item, snippet: t.snippet }] : [];
+		});
 	});
 }
