@@ -88,8 +88,8 @@ export const OUTAGE_CHECKS = [
 export const INGESTED_AT = '2026-10-13T11:40:00.000Z';
 
 /**
- * Build the fixture at `file` (which must not exist yet). `fts` sets meta.fts = '1', which db.ts's
- * search() needs before it uses items_fts; apply.js never sets it, so without it search falls back to LIKE.
+ * Build the fixture at `file` (which must not exist yet). The migrations set meta.fts = '1';
+ * `fts: false` clears it, so db.ts's search() falls back to LIKE.
  */
 export function buildFixture(file: string, { fts = true }: { fts?: boolean } = {}) {
 	const db = new Database(file);
@@ -107,7 +107,7 @@ export function buildFixture(file: string, { fts = true }: { fts?: boolean } = {
 		);
 		const check = db.prepare('INSERT INTO outage_checks (checked_at, is_alert, text) VALUES (?, ?, ?)');
 		for (const c of OUTAGE_CHECKS) check.run(c.checked_at, c.is_alert, c.text);
-		if (fts) db.prepare("INSERT INTO meta (key, value) VALUES ('fts', '1')").run();
+		if (!fts) db.prepare("DELETE FROM meta WHERE key = 'fts'").run();
 	} finally {
 		db.close();
 	}

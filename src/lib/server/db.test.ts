@@ -2,7 +2,6 @@
 // search-fallback.test.ts covers search() without it.
 import { describe, expect, test } from 'vitest';
 import { getBriefing, latestDate, listBriefings, listOutageChecks, listSources, outageStatus, search } from './db';
-import type { Link } from './schema';
 import { INGESTED_AT } from './test-fixture';
 
 describe('listBriefings', () => {
@@ -58,8 +57,7 @@ describe('getBriefing', () => {
 		expect(outage_alert).toBe(true);
 		expect(outage).toMatchObject({ is_outage: true, position: 0, headline: null, category: 'Outages' });
 		expect(outage!.body_md).toBe('**API errors** at Example Cloud for 40 minutes. [Status](https://status.example.com/)\nElevated latency on the batch endpoint.');
-		// FullBriefing types `outage` as a plain Item, but getBriefing attaches its links like any other item.
-		expect((outage as typeof outage & { links: Link[] }).links.map((l) => l.url)).toEqual(['https://status.example.com/']);
+		expect(outage!.links.map((l) => l.url)).toEqual(['https://status.example.com/']);
 	});
 
 	test('a section only gets its own items', () => {

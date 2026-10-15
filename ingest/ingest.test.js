@@ -235,6 +235,16 @@ test('adopts a database from before migrations at version 1', () => {
 	assert.equal(scalar(db, 'SELECT title FROM briefings'), 'Kept');
 });
 
+test('0002 turns on full-text search, new or adopted', () => {
+	assert.equal(scalar(fresh(), "SELECT value FROM meta WHERE key = 'fts'"), '1');
+	const db = new Database(':memory:');
+	db.exec(migrations()[0].sql);
+	db.pragma('user_version = 1');
+	db.exec("INSERT INTO meta (key, value) VALUES ('fts', '0')");
+	migrate(db);
+	assert.equal(scalar(db, "SELECT value FROM meta WHERE key = 'fts'"), '1');
+});
+
 test('refuses to adopt the old *_html schema', () => {
 	const db = new Database(':memory:');
 	db.exec('CREATE TABLE briefings (date TEXT PRIMARY KEY); CREATE TABLE items (id INTEGER PRIMARY KEY, body_html TEXT);');

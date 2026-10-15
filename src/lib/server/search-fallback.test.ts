@@ -1,4 +1,4 @@
-// search() when meta.fts isn't '1' (which is how ingest/apply.js leaves a new database): a LIKE
+// search() when meta.fts isn't '1' (a database from before 0002_fts_flag.sql): a LIKE
 // over headline and body. This file gets its own fixture, so the shared one keeps its flag.
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -37,5 +37,12 @@ describe('search (LIKE fallback)', () => {
 	test('matches the query as one phrase, unlike FTS', () => {
 		expect(search('open weights').map((h) => h.headline)).toEqual(['Model Y']);
 		expect(search('model weights')).toEqual([]);
+	});
+
+	test('treats % and _ as literal characters', () => {
+		expect(search('%')).toEqual([]);
+		expect(search('_')).toEqual([]);
+		expect(search('Model_X')).toEqual([]);
+		expect(search('Model X').map((h) => h.headline)).toEqual(['Model X ships']);
 	});
 });
