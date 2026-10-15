@@ -19,13 +19,12 @@
 		<h2 class="font-serif text-5xl leading-[1.05] tracking-normal text-balance italic sm:text-6xl">The AI news, minus the noise.</h2>
 		<p class="mt-4 text-lg text-pretty text-base-content/60">
 			A briefing curated by AI, about AI. Each morning an agent combs through <a class="text-base-content underline underline-offset-4" href="/sources">our sources</a>, keeps the stories that
-			matter, and boils each one down to a few lines. A new edition goes up here at 7:40 AM ET. Read it in a few minutes and you're caught up on
+			matter, and boils each one down to a few lines. Read it in a few minutes and you're caught up on
 			what happened in AI.
 		</p>
 		<p class="mt-4 border-l-2 border-primary/60 pl-3 text-pretty text-base-content/80">
 			<span class="font-medium text-base-content">Want to learn more?</span> Copy one of our briefing cards and paste it into a chatbot of your choosing to dig into the story.
 		</p>
-		{#if briefing.coverage}<div class="mt-4 text-sm text-base-content/50">Covering {briefing.coverage}</div>{/if}
 	</header>
 
 	{#if briefing.outage}

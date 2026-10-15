@@ -7,7 +7,7 @@
 	}
 </script>
 
-<svelte:head><title>Search · AI Briefing</title></svelte:head>
+<svelte:head><title>Search · AI Morning Briefing</title></svelte:head>
 
 <h2 class="mb-8 text-4xl leading-none sm:text-5xl">Search</h2>
 <form method="GET" class="mb-6 flex gap-2" data-sveltekit-reset="false">

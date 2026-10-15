@@ -6,7 +6,7 @@
 	let { data } = $props();
 </script>
 
-<svelte:head><title>Outages · AI Briefing</title></svelte:head>
+<svelte:head><title>Outages · AI Morning Briefing</title></svelte:head>
 
 <h2 class="mb-8 text-4xl leading-none sm:text-5xl">Outages</h2>
 {#if OUTAGES_MAINTENANCE}

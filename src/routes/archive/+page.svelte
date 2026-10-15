@@ -3,7 +3,7 @@
 	let { data } = $props();
 </script>
 
-<svelte:head><title>Archive · AI Briefing</title></svelte:head>
+<svelte:head><title>Archive · AI Morning Briefing</title></svelte:head>
 
 <h2 class="mb-8 text-4xl leading-none sm:text-5xl">Archive</h2>
 <ul class="menu w-full gap-0.5 rounded-box border border-base-300 bg-base-200 p-3">

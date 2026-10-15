@@ -3,7 +3,6 @@
 	import { page } from '$app/state';
 	import { refreshAll } from '$app/navigation';
 	import { version } from '$app/env';
-	import { fmtTime } from '#lib/format.js';
 	import { OUTAGES_MAINTENANCE } from '#lib/outages.js';
 
 	let { data, children } = $props();
@@ -37,7 +36,7 @@
 	});
 </script>
 
-<svelte:head><title>AI Briefing</title></svelte:head>
+<svelte:head><title>AI Morning Briefing</title></svelte:head>
 
 <div class="sticky top-0 z-10 px-3 pt-3 sm:px-6 sm:pt-4">
 	<header
@@ -81,8 +80,7 @@
 <footer class="mx-auto max-w-6xl px-3 pb-10 sm:px-6">
 	<div class="flex flex-col gap-4 border-t border-base-300/60 pt-6 text-sm text-base-content/45 sm:flex-row sm:items-center sm:justify-between">
 		<p>
-			<a class="text-base-content/70 transition-colors hover:text-base-content" href="/">AI Briefing</a> · curated by AI, about AI{#if data.ingestedAt}
-				· updated {fmtTime(data.ingestedAt)}{/if}
+			<a class="text-base-content/70 transition-colors hover:text-base-content" href="/">AI Briefing</a> · curated by AI, about AI
 			·
 			{#if /^[0-9a-f]{7}$/.test(version)}
 				<a
