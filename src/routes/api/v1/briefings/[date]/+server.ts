@@ -1,3 +1,4 @@
+import { apiBriefing } from '#lib/api-shape.js';
 import { getBriefing, latestDate } from '#lib/server/db.js';
 import { CACHE_PAST, CACHE_SHORT, api, fail, isDate, ok } from '#lib/server/api.js';
 import type { RequestHandler } from './$types';
@@ -7,5 +8,5 @@ export const GET: RequestHandler = api(({ params }) => {
 	const briefing = getBriefing(params.date);
 	if (!briefing) return fail(404, `No briefing for ${params.date}`);
 	// The newest day can still be re-pulled; older ones are settled.
-	return ok(briefing, params.date === latestDate() ? CACHE_SHORT : CACHE_PAST);
+	return ok(apiBriefing(briefing), params.date === latestDate() ? CACHE_SHORT : CACHE_PAST);
 });

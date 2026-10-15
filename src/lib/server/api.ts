@@ -1,6 +1,7 @@
-// Helpers for the read-only JSON API under /api/v1. Rows go out as stored: markdown fields (*_md,
-// body) stay markdown, never HTML.
+// Helpers for the read-only JSON API under /api/v1. Responses are plain text, never markdown or HTML:
+// src/lib/api-shape.js shapes the rows.
 import { isHttpError, json, type RequestEvent } from '@sveltejs/kit';
+import { apiBriefingSummary } from '../api-shape.js';
 import type { BriefingSummary, Page } from './db';
 
 // briefing-pull adds a day's briefing hourly and re-ingests a file Grok Bot rewrites, so only an
@@ -38,7 +39,7 @@ export function isDate(s: string): boolean {
 
 /** One page of the briefing list. */
 export const briefingPage = ({ rows, total }: Page<BriefingSummary>, info: { page: number; pages: number }) => ({
-	briefings: rows,
+	briefings: rows.map(apiBriefingSummary),
 	total,
 	...info
 });

@@ -1,7 +1,7 @@
 // Strict parser for Grok Bot's daily briefing-YYYY-MM-DD.md (format spec: DRIVE_FORMAT.md on its side).
 // Anything off-format throws, so a bad file is skipped instead of half-ingested. Text is stored as
 // markdown, not HTML; the app renders it through src/lib/inline-md.js, so raw HTML stays literal text.
-import { inlineTokens } from '../src/lib/inline-md.js';
+import { ITEM, inlineTokens, itemSummary } from '../src/lib/inline-md.js';
 
 const MAX_BYTES = 512 * 1024;
 const MAX_ITEMS = 200;
@@ -12,7 +12,8 @@ export class FormatError extends Error {}
 /**
  * @typedef {{ label: string, url: string }} ParsedLink
  * @typedef {{ position: number, title: string, note_md: string | null }} ParsedSection
- * @typedef {{ category: string, position: number, headline: string | null, body: string, body_md: string, is_outage: boolean, links: ParsedLink[] }} ParsedItem
+ * body: the whole item as plain text (search); summary: the text after the headline, plain (the API's body; see itemSummary)
+ * @typedef {{ category: string, position: number, headline: string | null, body: string, summary: string, body_md: string, is_outage: boolean, links: ParsedLink[] }} ParsedItem
  * @typedef {{ date: string, title: string, coverage: string | null, intro_md: string | null, outage_alert: boolean }} ParsedHeader
  * @typedef {{ briefing: ParsedHeader, sections: ParsedSection[], items: ParsedItem[] }} ParsedBriefing
  */
@@ -130,12 +131,14 @@ export function parseBriefing(source, expectDate) {
 			if (!s.bullets.length) fail('Outages section has no item');
 			// The app shows one outage line per briefing, so several bullets become one item, a line each.
 			const parts = s.bullets.map(checkInline);
+			const md = s.bullets.join('\n');
 			items.push({
 				category: OUTAGES,
 				position: 0,
 				headline: null,
 				body: parts.map((p) => p.text).join(' '),
-				body_md: s.bullets.join('\n'),
+				summary: itemSummary(md, true),
+				body_md: md,
 				is_outage: true,
 				links: parts.flatMap((p) => p.links)
 			});
@@ -143,7 +146,7 @@ export function parseBriefing(source, expectDate) {
 		}
 		if (!s.bullets.length) fail(`section "${s.title}" has no items`);
 		for (const b of s.bullets) {
-			const m = /^\*\*(.+?)\*\*\s*(?:[—–:-]\s*)?(.*)$/.exec(b);
+			const m = ITEM.exec(b);
 			if (!m || !m[2].trim()) fail(`item must be "**Headline** — summary": ${b}`);
 			const r = checkInline(b);
 			items.push({
@@ -151,6 +154,7 @@ export function parseBriefing(source, expectDate) {
 				position: ++pos,
 				headline: checkInline(m[1]).text,
 				body: r.text,
+				summary: itemSummary(b, false),
 				body_md: b,
 				is_outage: false,
 				links: r.links

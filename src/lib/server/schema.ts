@@ -1,6 +1,7 @@
 // Drizzle tables for /opt/ai-briefing/data/briefing.db. The schema lives in ingest/migrations/*.sql;
 // this file only mirrors it for typed reads, so update it alongside each migration and never generate
-// or run Drizzle migrations against it. *_md columns hold inline markdown (src/lib/inline-md.js).
+// or run Drizzle migrations against it. *_md columns hold inline markdown (src/lib/inline-md.js);
+// the rest is plain text.
 // items_fts (FTS5) and drive_files aren't modelled; search() queries items_fts with raw SQL.
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
@@ -25,9 +26,10 @@ export const items = sqliteTable('items', {
 	briefing_date: text('briefing_date').notNull(),
 	category: text('category').notNull(),
 	position: integer('position').notNull(),
-	headline: text('headline'),
-	body: text('body').notNull(),
-	body_md: text('body_md').notNull(),
+	headline: text('headline'), // plain; null for the outage item
+	body: text('body').notNull(), // the whole item incl. headline and link labels, plain, for search
+	summary: text('summary').notNull(), // the text after the headline, plain, no citation links: the API's body
+	body_md: text('body_md').notNull(), // the source line(s), what the site renders
 	is_outage: integer('is_outage', { mode: 'boolean' }).notNull()
 });
 

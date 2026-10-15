@@ -2,10 +2,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import Database from 'better-sqlite3';
-import { inlineTokens, linkHost, plainText } from '../src/lib/inline-md.js';
+import { apiText, inlineTokens, itemSummary, linkHost, plainText } from '../src/lib/inline-md.js';
 import { getTableConfig } from 'drizzle-orm/sqlite-core';
 import * as schema from '../src/lib/server/schema.ts';
-import { migrate, migrations, openWriter, verify } from './apply.js';
+import { AFTER_MIGRATION, migrate, migrations, openWriter, verify } from './apply.js';
 import { FormatError, checkInline, parseBriefing } from './briefing-md.js';
 import { parseSources } from './sources-md.js';
 
@@ -75,6 +75,8 @@ test('parses the sample into rows', () => {
 	);
 	const x = p.items[1];
 	assert.equal(x.body, 'Model X ships — Faster and cheaper. Vendor blog News');
+	assert.equal(x.summary, 'Faster and cheaper.');
+	assert.equal(p.items[0].summary, 'No major outages.');
 	assert.match(x.body_md, /^\*\*Model X ships\*\* — Faster and cheaper\. \[Vendor blog\]\(https:\/\/example\.com\/x\)/);
 	assert.deepEqual(x.links, [
 		{ label: 'Vendor blog', url: 'https://example.com/x' },
@@ -112,6 +114,55 @@ test('copied text drops formatting and keeps link URLs', () => {
 		plainText('**Big news** — `gpt-6` ships. [DOJ](https://www.justice.gov/x) [AP](https://apnews.com/y)\nline two'),
 		'Big news — gpt-6 ships. DOJ (https://www.justice.gov/x) AP (https://apnews.com/y)\nline two'
 	);
+});
+
+// Items in the shapes Grok Bot writes: em dash, en dash, hyphen or colon after the headline; bold and
+// code mid-sentence; inline links; trailing citation links; a multi-line outage with its own bold lead.
+const VARIED = `---
+date: 2026-10-14
+title: Varied
+outage_alert: true
+---
+
+## Outages
+- **Cursor down** — Agents failing since 8 PM ET. [Cursor Status](https://status.cursor.com)
+- GitHub Actions degraded. [GitHub Status](https://www.githubstatus.com)
+
+## News
+- **Em dash** — Uses **bold** and \`gpt-6\` per [the docs](https://e.com/d), then more. [Reuters](https://r.com/a) [AP](https://ap.com/b)
+- **En dash** – Second. [AP](https://ap.com/c)
+- **Colon**: Third, (see [X](https://x.com/1)).
+- **Hyphen** - Fourth.
+- **Bold ends with a period.** — Fifth. [Src](https://s.com/), [Other](https://o.com/)
+- **Only a link** — [Details](https://d.com/)
+`;
+
+test('items get a plain summary: no headline, formatting or citation links', () => {
+	const p = parseBriefing(VARIED, '2026-10-14');
+	assert.deepEqual(
+		p.items.map((i) => [i.headline, i.summary]),
+		[
+			[null, 'Cursor down — Agents failing since 8 PM ET.\nGitHub Actions degraded.'],
+			['Em dash', 'Uses bold and gpt-6 per the docs, then more.'],
+			['En dash', 'Second.'],
+			['Colon', 'Third, (see X).'],
+			['Hyphen', 'Fourth.'],
+			['Bold ends with a period.', 'Fifth.'],
+			['Only a link', 'Details']
+		]
+	);
+	// The links themselves are kept as data, citations included.
+	assert.deepEqual(p.items[1].links.map((l) => l.label), ['the docs', 'Reuters', 'AP']);
+	// The backfill derives the same thing from body_md.
+	for (const i of p.items) assert.equal(itemSummary(i.body_md, i.is_outage), i.summary);
+});
+
+test('apiText drops formatting, keeps labels, and only drops trailing links when asked', () => {
+	assert.equal(apiText('a **b** `c` [d](https://e.com/) [f](https://f.com/)'), 'a b c');
+	assert.equal(apiText('a [d](https://e.com/) mid. [f](https://f.com/) | [g](https://g.com/)'), 'a d mid.');
+	assert.equal(apiText('a **b** `c` [d](https://e.com/) [f](https://f.com/)', { citations: true }), 'a b c d f');
+	assert.equal(apiText('unclosed ** bold   and\n[x](https://x.com/)'), 'unclosed bold and\nx');
+	assert.equal(apiText('`a**b`'), 'a**b'); // code is literal text, not formatting
 });
 
 test('rejects off-format files', () => {
@@ -252,6 +303,7 @@ test('verify catches a search index out of step with items', () => {
 
 test('src/lib/server/schema.ts matches the migrated database', () => {
 	const db = fresh();
+	assert.ok(getTableConfig(schema.items).columns.some((c) => c.name === 'summary'));
 	for (const table of Object.values(schema).map((t) => getTableConfig(/** @type {any} */ (t)))) {
 		const cols = /** @type {{ name: string, type: string, notnull: number, pk: number }[]} */ (
 			db.prepare('SELECT name, type, "notnull", pk FROM pragma_table_info(?)').all(table.name)
@@ -261,4 +313,48 @@ test('src/lib/server/schema.ts matches the migrated database', () => {
 		const expected = table.columns.map((c) => [c.name, c.getSQLType(), c.notNull]).sort();
 		assert.deepEqual(expected, actual, `${table.name}: schema.ts columns (name, type, not null) vs the database`);
 	}
+});
+
+/** A database at version 1 (before 0002) holding the sample's rows, as production was. */
+function atVersion1() {
+	const db = new Database(':memory:');
+	db.exec(migrations()[0].sql);
+	db.pragma('user_version = 1');
+	const ins = db.prepare('INSERT INTO items (briefing_date, category, position, headline, body, body_md, is_outage) VALUES (?, ?, ?, ?, ?, ?, ?)');
+	db.exec("INSERT INTO briefings (date, title, outage_alert, created_at) VALUES ('2026-10-13', 'Old', 0, 't')");
+	for (const i of parseBriefing(VARIED.replace(/2026-10-14/, '2026-10-13'), '2026-10-13').items) {
+		const id = ins.run('2026-10-13', i.category, i.position, i.headline, i.body, i.body_md, i.is_outage ? 1 : 0).lastInsertRowid;
+		db.prepare('INSERT INTO items_fts(rowid, headline, body) VALUES (?, ?, ?)').run(id, i.headline, i.body);
+	}
+	return db;
+}
+
+test('0003 adds items.summary on a fresh database', () => {
+	const db = fresh();
+	assert.ok(db.prepare("SELECT 1 FROM pragma_table_info('items') WHERE name = 'summary' AND \"notnull\" = 1").get());
+	assert.equal(db.pragma('user_version', { simple: true }), migrations().length);
+	verify(db);
+});
+
+test('0003 backfills items.summary on a database at version 1', () => {
+	const db = atVersion1();
+	assert.deepEqual(migrate(db), migrations().slice(1).map((m) => m.name));
+	const rows = /** @type {{ id: number, summary: string }[]} */ (db.prepare('SELECT id, summary FROM items ORDER BY position').all());
+	const expected = parseBriefing(VARIED, '2026-10-14').items.map((i) => i.summary);
+	assert.deepEqual(rows.map((r) => r.summary), expected);
+	// IDs and the search index are untouched.
+	assert.deepEqual(rows.map((r) => r.id), [1, 2, 3, 4, 5, 6, 7]);
+	verify(db);
+	// The backfill matches what a fresh ingest of the same file stores.
+	const db2 = fresh();
+	openWriter(db2).applyAll([{ parsed: parseBriefing(VARIED, '2026-10-14'), file: { name: 'a', id: 'a', md5: 'a' } }]);
+	assert.deepEqual(db2.prepare('SELECT summary FROM items ORDER BY position').pluck().all(), expected);
+});
+
+test('the summary backfill is idempotent and only overwrites summary', () => {
+	const db = atVersion1();
+	migrate(db);
+	const before = db.prepare('SELECT * FROM items ORDER BY id').all();
+	AFTER_MIGRATION[3](db);
+	assert.deepEqual(db.prepare('SELECT * FROM items ORDER BY id').all(), before);
 });
