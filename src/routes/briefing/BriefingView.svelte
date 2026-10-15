@@ -3,6 +3,14 @@
 	import type { FullBriefing } from '#lib/server/db.js';
 
 	let { briefing }: { briefing: FullBriefing } = $props();
+
+	// The card's markdown, links included, dated so a chatbot knows when the story ran.
+	let copied = $state<number | null>(null);
+	async function copy(item: FullBriefing['sections'][number]['items'][number]) {
+		await navigator.clipboard.writeText(`${item.body_md}\n\n(From the AI briefing for ${briefing.date})`);
+		copied = item.id;
+		setTimeout(() => copied === item.id && (copied = null), 2000);
+	}
 </script>
 
 <div class="mx-auto max-w-5xl">
@@ -12,6 +20,9 @@
 			A briefing curated by AI, about AI. Each morning an agent combs through <a class="text-base-content underline underline-offset-4" href="/sources">our sources</a>, keeps the stories that
 			matter, and boils each one down to a few lines. A new edition goes up here at 7:40 AM ET. Read it in a few minutes and you're caught up on
 			what happened in AI.
+		</p>
+		<p class="mt-4 border-l-2 border-primary/60 pl-3 text-pretty text-base-content/80">
+			<span class="font-medium text-base-content">Want to learn more?</span> Copy one of our briefing cards and paste it into a chatbot of your choosing to dig into the story.
 		</p>
 		{#if briefing.coverage}<div class="mt-4 text-sm text-base-content/50">Covering {briefing.coverage}</div>{/if}
 	</header>
@@ -39,7 +50,12 @@
 						id="item-{item.position}"
 						class="story flex scroll-mt-28 flex-col gap-3 rounded-md border border-base-300/60 bg-base-200/50 p-6 backdrop-blur-sm transition-colors hover:bg-base-200/80 target:border-primary"
 					>
-						<span class="text-sm text-base-content/40 tabular-nums">{String(item.position).padStart(2, '0')}</span>
+						<div class="flex items-center justify-between">
+							<span class="text-sm text-base-content/40 tabular-nums">{String(item.position).padStart(2, '0')}</span>
+							<button type="button" class="btn btn-ghost btn-xs text-base-content/50" onclick={() => copy(item)}>
+								{copied === item.id ? 'Copied' : 'Copy'}
+							</button>
+						</div>
 						<div class="prose prose-sm max-w-none sm:prose-base prose-a:text-primary"><Markdown md={item.body_md} /></div>
 					</li>
 				{/each}
