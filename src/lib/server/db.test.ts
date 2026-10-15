@@ -107,6 +107,12 @@ describe('search (FTS)', () => {
 		expect(headlines('model nothinglikethis')).toEqual([]);
 	});
 
+	test('words under 3 characters match whole words only', () => {
+		expect(headlines('mo')).toEqual([]);
+		expect(headlines('mod').sort()).toEqual(['Model X ships', 'Model Y', 'Small model update']);
+		expect(headlines('x')).toEqual(['Model X ships']);
+	});
+
 	test('finds outage lines too', () => {
 		expect(search('latency')).toMatchObject([{ is_outage: true, briefing_date: '2026-10-12' }]);
 	});

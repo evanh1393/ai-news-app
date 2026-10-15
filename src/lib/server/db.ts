@@ -119,13 +119,17 @@ export interface SearchHit extends Item {
 	snippet: string;
 }
 
-/** Full-text search over items (FTS5). Each word is prefix-matched; all words must appear. */
+// Shorter words match whole words only: "a"* or "mo"* expands to thousands of terms and was the
+// slowest search by far as the archive grows.
+const MIN_PREFIX = 3;
+
+/** Full-text search over items (FTS5). Words of MIN_PREFIX+ characters are prefix-matched; all words must appear. */
 export function search(q: string, limit = 50): SearchHit[] {
 	const terms = q
 		.split(/\s+/)
 		.map((t) => t.replace(/"/g, ''))
 		.filter(Boolean)
-		.map((t) => `"${t}"*`);
+		.map((t) => (t.length >= MIN_PREFIX ? `"${t}"*` : `"${t}"`));
 	if (!terms.length) return [];
 	return withDb((db) => {
 		if (metaValue(db, 'fts') !== '1') {
