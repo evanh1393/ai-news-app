@@ -13,6 +13,18 @@ npm run dev
 
 Production is Node 22. `npm run dev` reads `data/briefing.db` (gitignored), or whatever `BRIEFING_DB` points at. If that file is missing, `npm run dev` first pulls a copy from the droplet over SSH. Run `npm run db:pull` to refresh it. The data dir isn't readable by `evanh`, so the pull reads it with `sudo`.
 
+## API
+
+Read-only JSON under `/api/v1`, all `GET`. Rows come back as stored, so text fields are markdown (`*_md`, `body`), never HTML. Errors are `{ "error": "..." }` with the matching status. The handlers are in `src/routes/api/v1/`, the shared helpers in `src/lib/server/api.ts`.
+
+- `/api/v1/briefings?page=N`: 30 per page, newest first, with item counts, plus `total`, `page` and `pages`.
+- `/api/v1/briefings/latest`: the newest briefing with its sections, items and links (404 if there are none).
+- `/api/v1/briefings/YYYY-MM-DD`: one briefing (400 for a bad date, 404 if missing).
+- `/api/v1/search?q=`: up to 50 hits, with the same limits as `/search` (`src/lib/server/search-query.ts`).
+- `/api/v1/sources`: the source list, in order.
+
+A day older than the latest is cached for a day; everything else for 5 minutes, since `briefing-pull` runs hourly.
+
 ## Deploy
 
 ```sh
@@ -29,7 +41,7 @@ Repo secrets: `DEPLOY_SSH_KEY` (the CI key's private half; its only copy), and `
 
 ## Hosting
 
-Visitors reach `eh-ai-blast.app` through Cloudflare, which forwards over a Cloudflare Tunnel to `cloudflared` on the droplet, then to Caddy on `127.0.0.1:8080` and the app on `:3000`. The tunnel is an outbound connection, so the droplet takes no inbound web traffic. People SSH over Tailscale (`ssh ai-briefing-do`, MagicDNS name `ai-briefing-do`), and CI through the tunnel (see CI/CD), so the DigitalOcean firewall (`infra/main.tf`) has no inbound rules at all and `ufw` only allows port 22 on `tailscale0`. Root login and passwords are off. The droplet is `tag:ai-briefing-do` in the tailnet policy, which lets your devices reach its port 22 and gives it no access to anything else on the tailnet. If Tailscale is down, use the Droplet Console in DigitalOcean. Cloudflare rate-limits `/search` per IP (`infra/cloudflare.tf`).
+Visitors reach `eh-ai-blast.app` through Cloudflare, which forwards over a Cloudflare Tunnel to `cloudflared` on the droplet, then to Caddy on `127.0.0.1:8080` and the app on `:3000`. The tunnel is an outbound connection, so the droplet takes no inbound web traffic. People SSH over Tailscale (`ssh ai-briefing-do`, MagicDNS name `ai-briefing-do`), and CI through the tunnel (see CI/CD), so the DigitalOcean firewall (`infra/main.tf`) has no inbound rules at all and `ufw` only allows port 22 on `tailscale0`. Root login and passwords are off. The droplet is `tag:ai-briefing-do` in the tailnet policy, which lets your devices reach its port 22 and gives it no access to anything else on the tailnet. If Tailscale is down, use the Droplet Console in DigitalOcean. Cloudflare rate-limits `/search` and `/api/v1/search` per IP (`infra/cloudflare.tf`).
 
 Error pages: the app renders its own errors (404, 400, 500…) in the site layout with `src/routes/+error.svelte`, falling back to the static `src/error.html` if the layout itself fails. When the app is down or restarting, Caddy answers 503 with `deploy/errors/unavailable.html` (installed to `/etc/caddy/errors/` by `npm run deploy`). Errors raised before the request reaches Caddy (the search rate limit's 429, a tunnel outage) are still Cloudflare's own pages.
 
