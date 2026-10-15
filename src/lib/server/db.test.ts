@@ -1,5 +1,6 @@
 // db.ts against the fixture database (test-fixture.ts), which has meta.fts = '1'.
 // search-fallback.test.ts covers search() without it.
+import Database from 'better-sqlite3';
 import { describe, expect, test } from 'vitest';
 import { getBriefing, latestDate, listBriefings, listOutageChecks, listSources, outageStatus, search } from './db';
 import { INGESTED_AT } from './test-fixture';
@@ -124,5 +125,17 @@ describe('search (FTS)', () => {
 
 	test('respects the limit', () => {
 		expect(search('model', 2)).toHaveLength(2);
+	});
+
+	test('returns hits in bm25 order, not id order', () => {
+		const db = new Database(process.env.BRIEFING_DB!, { readonly: true });
+		const ranked = db
+			.prepare(`SELECT rowid FROM items_fts WHERE items_fts MATCH '"model"*' ORDER BY bm25(items_fts)`)
+			.pluck()
+			.all() as number[];
+		db.close();
+		// Only a useful check while the fixture ranks these out of id order.
+		expect(ranked).not.toEqual([...ranked].sort((a, b) => a - b));
+		expect(search('model').map((h) => h.id)).toEqual(ranked);
 	});
 });
