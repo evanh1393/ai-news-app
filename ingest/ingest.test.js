@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import Database from 'better-sqlite3';
-import { inlineTokens, linkHost } from '../src/lib/inline-md.js';
+import { inlineTokens, linkHost, plainText } from '../src/lib/inline-md.js';
 import { getTableConfig } from 'drizzle-orm/sqlite-core';
 import * as schema from '../src/lib/server/schema.ts';
 import { migrate, migrations, openWriter, verify } from './apply.js';
@@ -105,6 +105,13 @@ test('links show their real host unless the label is it', () => {
 	assert.equal(linkHost('google.com.evil.example', 'https://evil.example/'), 'evil.example');
 	assert.equal(linkHost('https://status.x.ai/', 'https://status.x.ai/'), null);
 	assert.equal(linkHost('www.Example.com/docs', 'https://example.com/docs'), null);
+});
+
+test('copied text drops formatting and keeps link URLs', () => {
+	assert.equal(
+		plainText('**Big news** — `gpt-6` ships. [DOJ](https://www.justice.gov/x) [AP](https://apnews.com/y)\nline two'),
+		'Big news — gpt-6 ships. DOJ (https://www.justice.gov/x) AP (https://apnews.com/y)\nline two'
+	);
 });
 
 test('rejects off-format files', () => {

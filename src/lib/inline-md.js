@@ -61,3 +61,18 @@ export function linkHost(label, url) {
 	const shown = label.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '');
 	return shown === host || shown.startsWith(`${host}/`) ? null : host;
 }
+
+/**
+ * Inline markdown as plain text, for copying: formatting dropped, each link as "label (url)".
+ * @param {string} src
+ */
+export function plainText(src) {
+	return src
+		.split('\n')
+		.map((line) =>
+			inlineTokens(line)
+				.map((t) => (t.type === 'link' ? `${t.text} (${t.url})` : t.text))
+				.join('')
+		)
+		.join('\n');
+}

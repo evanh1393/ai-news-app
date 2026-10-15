@@ -1,13 +1,14 @@
 <script lang="ts">
 	import Markdown from '#lib/components/Markdown.svelte';
+	import { plainText } from '#lib/inline-md.js';
 	import type { FullBriefing } from '#lib/server/db.js';
 
 	let { briefing }: { briefing: FullBriefing } = $props();
 
-	// The card's markdown, links included, dated so a chatbot knows when the story ran.
+	// The card as plain text with its link URLs, dated so a chatbot knows when the story ran.
 	let copied = $state<number | null>(null);
 	async function copy(item: FullBriefing['sections'][number]['items'][number]) {
-		await navigator.clipboard.writeText(`${item.body_md}\n\n(From the AI briefing for ${briefing.date})`);
+		await navigator.clipboard.writeText(`${plainText(item.body_md)}\n\n(From the AI briefing for ${briefing.date})`);
 		copied = item.id;
 		setTimeout(() => copied === item.id && (copied = null), 2000);
 	}
