@@ -34,7 +34,8 @@ jobs:
       - run: npm ci
       # Type-checks the app and ingest/ (JS via checkJs + JSDoc).
       - run: npm run check
-      # Includes building a database from every migration, verify(), and schema.ts matching it.
+      # ingest/ on node:test (a database from every migration, verify(), schema.ts matching it), then
+      # the app on Vitest (src/lib, db.ts and route loaders against a fixture database).
       - run: npm test
       - run: npm run build
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

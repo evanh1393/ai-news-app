@@ -13,6 +13,8 @@ npm run dev
 
 Production is Node 22. `npm run dev` reads `data/briefing.db` (gitignored), or whatever `BRIEFING_DB` points at. If that file is missing, `npm run dev` first pulls a copy from the droplet over SSH. Run `npm run db:pull` to refresh it. The data dir isn't readable by `evanh`, so the pull reads it with `sudo`.
 
+`npm test` runs the ingest tests (`node:test`, `ingest/*.test.js`), then the app's (Vitest, `src/**/*.test.ts`: `src/lib`, `db.ts` and the route loaders). Vitest points `BRIEFING_DB` at a temp database built from the migrations and a few sample briefings (`src/lib/server/test-fixture.ts`), never `data/briefing.db`. `npx vitest` reruns them on save.
+
 ## Deploy
 
 ```sh
@@ -51,7 +53,7 @@ sudo -u briefing-pull node ingest/pull.js --dry-run   # download + validate, no 
 journalctl -u briefing-pull                           # run history
 ```
 
-`npm test` covers the parser and the DB writes. Outage checks are paused (`src/lib/outages.ts`) until they have their own feed.
+`npm test` covers the parser and the DB writes, and the app's reads of them. Outage checks are paused (`src/lib/outages.ts`) until they have their own feed.
 
 Grok Bot used to push a whole `briefing.db` over SSH as `newsbot`. That path is gone: the upload shell, the account and `/opt/ai-briefing/docs` were removed from CT 101, the homelab container that hosted the site before the droplet, on 2026-10-13.
 
