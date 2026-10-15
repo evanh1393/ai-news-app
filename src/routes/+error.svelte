@@ -20,7 +20,7 @@
 	let detail = $derived(status < 500 && page.error?.message && page.error.message !== 'Not Found' ? page.error.message : '');
 </script>
 
-<svelte:head><title>{status} · AI Briefing</title></svelte:head>
+<svelte:head><title>{status} · AI Morning Briefing</title></svelte:head>
 
 <div class="mx-auto max-w-3xl py-8 sm:py-16">
 	<header class="intro">

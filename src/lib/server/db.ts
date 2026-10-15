@@ -98,10 +98,10 @@ export function listOutageChecks(limit: number, offset: number): Page<OutageChec
 }
 
 /** Newest outage check, used for the header dot and banners. */
-export function outageStatus(): { active: boolean; latest: OutageCheck | undefined; ingestedAt: string | undefined } {
+export function outageStatus(): { active: boolean; latest: OutageCheck | undefined } {
 	return withDb((db) => {
 		const latest = db.select().from(outageChecks).orderBy(desc(outageChecks.checked_at)).limit(1).get();
-		return { active: !!latest?.is_alert, latest, ingestedAt: metaValue(db, 'ingested_at') ?? undefined };
+		return { active: !!latest?.is_alert, latest };
 	});
 }
 

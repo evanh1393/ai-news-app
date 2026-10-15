@@ -4,7 +4,7 @@
 	let { data } = $props();
 </script>
 
-<svelte:head><title>Sources · AI Briefing</title></svelte:head>
+<svelte:head><title>Sources · AI Morning Briefing</title></svelte:head>
 
 <div class="mx-auto max-w-3xl">
 	<header class="intro mb-8">
