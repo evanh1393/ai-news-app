@@ -13,7 +13,7 @@ npm run dev
 
 Production is Node 22. `npm run dev` reads `data/briefing.db` (gitignored), or whatever `BRIEFING_DB` points at. If that file is missing, `npm run dev` first pulls a copy from the droplet over SSH. Run `npm run db:pull` to refresh it. The data dir isn't readable by `evanh`, so the pull reads it with `sudo`.
 
-`npm test` runs the ingest tests (`node:test`, `ingest/*.test.js`), then the app's (Vitest, `src/**/*.test.ts`: `src/lib`, `db.ts` and the route loaders). Vitest points `BRIEFING_DB` at a temp database built from the migrations and a few sample briefings (`src/lib/server/test-fixture.ts`), never `data/briefing.db`. `npx vitest` reruns them on save.
+`npm test` runs the ingest tests (`node:test`, `ingest/*.test.js`), then the app's (Vitest, `src/**/*.test.ts`: `src/lib`, `db.ts`, the route loaders and the `/api/v1` handlers). Vitest points `BRIEFING_DB` at a temp database built from the migrations and a few sample briefings (`src/lib/server/test-fixture.ts`), never `data/briefing.db`. `npx vitest` reruns them on save.
 
 ## API
 
