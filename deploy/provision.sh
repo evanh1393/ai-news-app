@@ -9,7 +9,7 @@ export DEBIAN_FRONTEND=noninteractive
 
 apt-get update
 apt-get -y upgrade
-apt-get -y install ca-certificates curl gnupg rsync sudo nftables caddy ufw unattended-upgrades
+apt-get -y install ca-certificates curl gnupg rsync sudo nftables caddy ufw unattended-upgrades ncurses-term
 
 # Node 22 from NodeSource, same as CT 101.
 curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
@@ -30,6 +30,11 @@ echo "deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg] https://
 
 apt-get update
 apt-get -y install nodejs cloudflared tailscale
+
+# Ghostty sends TERM=xterm-ghostty over SSH. ncurses-term ships the entry only as "ghostty", so
+# alias it, or clear and full-screen programs fail with "unknown terminal type".
+install -d /etc/terminfo/x
+ln -sf /usr/share/terminfo/g/ghostty /etc/terminfo/x/xterm-ghostty
 
 # Users. evanh deploys (passwordless sudo, as deploy.sh uses `sudo -n`); briefing runs the app;
 # briefing-pull writes the DB. caddy comes from the package.
