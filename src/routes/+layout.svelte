@@ -4,6 +4,7 @@
 	import { refreshAll } from '$app/navigation';
 	import { version } from '$app/env';
 	import { OUTAGES_MAINTENANCE } from '#lib/outages.js';
+	import Logo from '#lib/components/Logo.svelte';
 
 	let { data, children } = $props();
 
@@ -42,7 +43,9 @@
 	<header
 		class="mx-auto grid max-w-6xl grid-cols-[1fr_auto] items-center gap-x-6 gap-y-2 rounded-box border border-base-300 bg-base-200/85 py-2.5 pr-2.5 pl-5 backdrop-blur-md sm:grid-cols-[1fr_auto_1fr]"
 	>
-		<a class="text-lg font-medium tracking-tight transition-opacity hover:opacity-70" href="/">AI Briefing</a>
+		<a class="flex items-center gap-2.5 text-lg font-medium tracking-tight transition-opacity hover:opacity-70" href="/">
+			<Logo class="size-8" />AI Briefing
+		</a>
 		<nav class="order-last col-span-2 -mx-1 sm:order-none sm:col-span-1">
 			<ul class="flex flex-wrap gap-x-6 gap-y-1 text-[15px] font-medium">
 				{#each nav as n (n.href)}
