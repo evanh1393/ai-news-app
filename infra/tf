@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# terraform with the API tokens from infra/.env: ./tf plan, ./tf apply, ...
+set -euo pipefail
+cd "$(dirname "$0")"
+[[ -f .env ]] || { echo "infra/.env is missing: copy .env.example and fill it in." >&2; exit 1; }
+set -a
+. ./.env
+set +a
+exec terraform "$@"
