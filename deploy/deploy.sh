@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build on this machine with Node 22 and ship the app and units to the droplet.
+# Build on this machine with the droplet's Node and ship the app and units to the droplet.
 # Does not touch /opt/ai-briefing/data. briefing-pull.timer updates briefing.db there from Drive.
 set -euo pipefail
 
@@ -8,15 +8,18 @@ host=${DEPLOY_HOST:-ai-briefing-do}
 remote=/opt/ai-briefing/app
 cd "$root"
 
-npm22() {
+# The droplet's Node major (NodeSource node_26.x, deploy/provision.sh). Builds use the same one.
+node_major=26
+
+with_node() {
   if command -v mise >/dev/null 2>&1; then
-    mise exec node@22 -- "$@"
+    mise exec "node@$node_major" -- "$@"
     return
   fi
   local major
   major=$(node -p 'process.versions.node.split(".")[0]')
-  if [[ "$major" != "22" ]]; then
-    echo "The droplet runs Node 22. This machine is Node $(node -v), and mise is not available." >&2
+  if [[ "$major" != "$node_major" ]]; then
+    echo "The droplet runs Node $node_major. This machine is Node $(node -v), and mise is not available." >&2
     exit 1
   fi
   "$@"
@@ -25,7 +28,7 @@ npm22() {
 # PREBUILT=1: build/ already exists (CI builds it in a job that has no deploy credentials).
 if [[ "${PREBUILT:-}" != 1 ]]; then
   echo "installing local dependencies"
-  npm22 npm ci
+  with_node npm ci
 fi
 
 lock_local=$(sha256sum package-lock.json | awk '{print $1}')
@@ -62,7 +65,7 @@ fi
 
 if [[ "${PREBUILT:-}" != 1 ]]; then
   echo "building"
-  npm22 npm run build
+  with_node npm run build
 fi
 
 echo "syncing build"
