@@ -21,8 +21,8 @@ GitHub Actions deploys through Cloudflare Access with a service token that lasts
 
 ```sh
 terraform apply -replace=cloudflare_zero_trust_access_service_token.ci
-terraform output -raw ci_access_client_id | gh secret set CF_ACCESS_CLIENT_ID
-terraform output -raw ci_access_client_secret | gh secret set CF_ACCESS_CLIENT_SECRET
+terraform output -raw ci_access_client_id | gh secret set CF_ACCESS_CLIENT_ID --env production
+terraform output -raw ci_access_client_secret | gh secret set CF_ACCESS_CLIENT_SECRET --env production
 gh run rerun --failed "$(gh run list --branch main --limit 1 --json databaseId -q '.[0].databaseId')" || true
 ```
 

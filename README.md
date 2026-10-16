@@ -41,7 +41,21 @@ That builds here with Node 22, copies the app and systemd units to the droplet, 
 
 `.github/workflows/deploy.yml` checks migrations, type-checks (including the plain JS in `ingest/`, through `checkJs` and JSDoc types), tests and builds every PR and push to `main`. A push to `main` (a merged PR) also deploys: the deploy job SSHes to `ssh.eh-ai-blast.app`, which Cloudflare Access only lets through with the CI service token, and the Cloudflare Tunnel delivers it to sshd on the droplet's `127.0.0.1:22`. It logs in as `evanh` with a CI-only key (`deploy/ci_authorized_key`: usable only from 127.0.0.1, i.e. through the tunnel, with no forwarding) and runs `npm run deploy`. `deploy/known_hosts` pins the droplet's host key. The droplet's public port 22 stays closed.
 
-Repo secrets: `DEPLOY_SSH_KEY` (the CI key's private half; its only copy), and `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET` (`terraform output` in `infra/`). To rotate the key, generate a new one, update `deploy/ci_authorized_key` and the secret, and deploy from a laptop once.
+Secrets, all in the `production` environment (not repo secrets), so only the deploy job on `main` gets them: `DEPLOY_SSH_KEY` (the CI key's private half; its only copy), and `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET` (`terraform output` in `infra/`).
+
+To rotate the CI key (e.g. it may have leaked):
+
+```sh
+ssh-keygen -t ed25519 -N '' -C ai-briefing-ci-deploy -f ~/.ssh/ai-briefing-ci-new
+printf 'restrict,from="127.0.0.1,::1" %s\n' "$(cat ~/.ssh/ai-briefing-ci-new.pub)" > deploy/ci_authorized_key
+# Commit that, merge it, and let CI deploy with the old key. deploy.sh swaps the old key's line on the
+# droplet for the new one (any line with the ai-briefing-ci-deploy comment), so the old key stops working.
+gh secret set DEPLOY_SSH_KEY --env production < ~/.ssh/ai-briefing-ci-new
+rm ~/.ssh/ai-briefing-ci-new ~/.ssh/ai-briefing-ci-new.pub
+gh run rerun "$(gh run list --branch main --limit 1 --json databaseId -q '.[0].databaseId')"  # deploys with the new key
+```
+
+Keep the `ai-briefing-ci-deploy` comment on the key: it's how `deploy.sh` finds the old line to replace.
 
 ## Hosting
 
