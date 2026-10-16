@@ -2,7 +2,7 @@ import type { Handle } from '@sveltejs/kit/hooks';
 
 // Response headers for everything SvelteKit renders. The CSP comes from kit config (vite.config.ts).
 // Cloudflare only serves HTTPS (.app requires it), so HSTS is safe. adapter-node serves build/client
-// and static/ before this hook runs, so those files don't get them.
+// and static/ before this hook runs; Cloudflare adds nosniff to those (infra/cloudflare.tf).
 export const securityHeaders: Record<string, string> = {
 	'strict-transport-security': 'max-age=31536000',
 	'x-content-type-options': 'nosniff',

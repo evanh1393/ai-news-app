@@ -85,6 +85,31 @@ resource "cloudflare_ruleset" "rate_limit" {
   ]
 }
 
+# adapter-node serves build/client (JS/CSS) and static/ before src/hooks.server.ts runs, so those
+# responses miss the app's headers. Set nosniff at the edge so it covers every response.
+resource "cloudflare_ruleset" "response_headers" {
+  zone_id = data.cloudflare_zone.site.zone_id
+  name    = "Security response headers"
+  kind    = "zone"
+  phase   = "http_response_headers_transform"
+
+  rules = [
+    {
+      description = "nosniff on every response"
+      expression  = "true"
+      action      = "rewrite"
+      action_parameters = {
+        headers = {
+          "X-Content-Type-Options" = {
+            operation = "set"
+            value     = "nosniff"
+          }
+        }
+      }
+    },
+  ]
+}
+
 resource "cloudflare_dns_record" "ssh" {
   zone_id = data.cloudflare_zone.site.zone_id
   name    = "ssh.${local.domain}"
