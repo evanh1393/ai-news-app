@@ -1,4 +1,4 @@
-# Public traffic: eh-ai-blast.app -> Cloudflare -> tunnel -> cloudflared on the droplet -> Caddy :8080.
+# Public traffic: eh-ai-blast.app -> Cloudflare -> tunnel -> cloudflared on the droplet -> node :3000.
 # CI deploys: ssh.eh-ai-blast.app -> Access (service token) -> tunnel -> sshd on 127.0.0.1:22.
 # cloudflared connects out, so the droplet takes no inbound connections (people SSH over Tailscale).
 
@@ -28,8 +28,9 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "ai_briefing" {
     ingress = [
       {
         hostname = local.domain
-        # 127.0.0.1, not localhost: Caddy binds IPv4 only, and localhost can resolve to ::1.
-        service = "http://127.0.0.1:8080"
+        # 127.0.0.1, not localhost: the app binds IPv4 only (HOST in ai-briefing-app.service), and
+        # localhost can resolve to ::1.
+        service = "http://127.0.0.1:3000"
       },
       {
         # CI deploys over SSH through the tunnel, behind the Access app below. Port 22 stays closed
