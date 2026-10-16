@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build on this machine with Node 22 and ship the app, Caddyfile, and units to the droplet.
+# Build on this machine with Node 22 and ship the app and units to the droplet.
 # Does not touch /opt/ai-briefing/data. briefing-pull.timer updates briefing.db there from Drive.
 set -euo pipefail
 
@@ -73,33 +73,26 @@ echo "authorizing the CI deploy key"
 ssh "$host" "grep -qxF '$(cat "$root/deploy/ci_authorized_key")' ~/.ssh/authorized_keys || cat >> ~/.ssh/authorized_keys" \
   < "$root/deploy/ci_authorized_key"
 
-echo "installing Caddyfile, systemd units, and egress firewall"
-scp "$root/deploy/Caddyfile" "${host}:/tmp/Caddyfile"
+echo "installing systemd units and egress firewall"
 scp "$root/deploy/ai-briefing-app.service" "${host}:/tmp/ai-briefing-app.service"
 scp "$root/deploy/briefing-pull.service" "$root/deploy/briefing-pull.timer" "${host}:/tmp/"
 scp "$root/deploy/ai-briefing-egress.nft" "${host}:/tmp/ai-briefing-egress.nft"
-scp "$root/deploy/errors/unavailable.html" "${host}:/tmp/unavailable.html"
 ssh "$host" 'set -euo pipefail
-  sudo caddy validate --adapter caddyfile --config /tmp/Caddyfile
   sudo nft -c -f /tmp/ai-briefing-egress.nft
-  sudo cp /tmp/Caddyfile /etc/caddy/Caddyfile
-  sudo install -D -m 644 /tmp/unavailable.html /etc/caddy/errors/unavailable.html
   sudo cp /tmp/ai-briefing-app.service /etc/systemd/system/ai-briefing-app.service
   sudo cp /tmp/briefing-pull.service /tmp/briefing-pull.timer /etc/systemd/system/
   sudo install -D -m 644 /tmp/ai-briefing-egress.nft /etc/ai-briefing/egress.nft
-  rm -f /tmp/Caddyfile /tmp/unavailable.html /tmp/ai-briefing-app.service /tmp/ai-briefing-egress.nft \
+  rm -f /tmp/ai-briefing-app.service /tmp/ai-briefing-egress.nft \
     /tmp/briefing-pull.service /tmp/briefing-pull.timer
   sudo systemctl daemon-reload
   sudo systemctl enable --quiet briefing-pull.timer ai-briefing-app
   # Pull before restarting, so the new app never reads a schema older than its code (ingest/apply.js
   # migrates it). A rejected Drive file makes this exit 1 after ingesting the rest, so check the page instead.
   sudo systemctl start briefing-pull.service || journalctl -u briefing-pull -n 20 --no-pager >&2
-  sudo systemctl reload caddy
   sudo systemctl restart ai-briefing-app
   for _ in 1 2 3 4 5 6 7 8 9 10; do
     if curl -fsS -o /dev/null http://127.0.0.1:3000/; then
-      curl -fsS -o /dev/null http://127.0.0.1:8080/
-      systemctl is-active ai-briefing-app caddy
+      systemctl is-active ai-briefing-app
       exit 0
     fi
     sleep 0.5

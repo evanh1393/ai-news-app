@@ -18,7 +18,7 @@ ExecStart=/usr/bin/node build
 Restart=always
 RestartSec=3
 
-# Sandbox. The app reads the DB and answers Caddy on loopback; it needs nothing else.
+# Sandbox. The app reads the DB and answers cloudflared on loopback; it needs nothing else.
 # Everything is read-only to it, including its own code.
 ProtectSystem=strict
 ProtectHome=yes

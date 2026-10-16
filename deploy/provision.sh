@@ -2,14 +2,14 @@
 # One-time setup of a fresh Debian 13 droplet (infra/) to match CT 101, before the first `npm run deploy`.
 # Run as root from a laptop, while the DigitalOcean firewall still has a temporary SSH rule (see README):
 #   ssh root@<droplet-ip> bash -s < deploy/provision.sh
-# Public traffic comes in through a Cloudflare Tunnel (cloudflared -> Caddy :8080), and SSH through
+# Public traffic comes in through a Cloudflare Tunnel (cloudflared -> the app on :3000), and SSH through
 # Tailscale, so the droplet takes no inbound connections from the internet.
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
 apt-get update
 apt-get -y upgrade
-apt-get -y install ca-certificates curl gnupg rsync sudo nftables caddy ufw unattended-upgrades ncurses-term
+apt-get -y install ca-certificates curl gnupg rsync sudo nftables ufw unattended-upgrades ncurses-term
 
 # Node 22 from NodeSource, same as CT 101.
 curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
@@ -37,7 +37,7 @@ install -d /etc/terminfo/x
 ln -sf /usr/share/terminfo/g/ghostty /etc/terminfo/x/xterm-ghostty
 
 # Users. evanh deploys (passwordless sudo, as deploy.sh uses `sudo -n`); briefing runs the app;
-# briefing-pull writes the DB. caddy comes from the package.
+# briefing-pull writes the DB.
 id evanh >/dev/null 2>&1 || useradd -m -s /bin/bash -G sudo,adm,systemd-journal evanh
 install -d -m 700 -o evanh -g evanh /home/evanh/.ssh
 install -m 600 -o evanh -g evanh /root/.ssh/authorized_keys /home/evanh/.ssh/authorized_keys
@@ -70,6 +70,5 @@ SSHD
 sshd -t
 systemctl reload ssh
 
-systemctl enable caddy
 systemctl enable --now unattended-upgrades
 echo "provisioned. Next: tailscale up, install the tunnel token, copy drive-key.json, npm run deploy."

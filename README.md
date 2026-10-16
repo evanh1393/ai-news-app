@@ -35,7 +35,7 @@ A day older than the latest is cached for a day; everything else for 5 minutes, 
 npm run deploy
 ```
 
-That builds here with Node 22, copies the app and `deploy/Caddyfile` to the droplet, restarts `ai-briefing-app`, and reloads Caddy. When `package-lock.json` changes (or the last server install failed), the script also runs `npm ci --omit=dev --ignore-scripts` on the droplet. `node build` loads the runtime `dependencies` (`better-sqlite3`, `drizzle-orm`) from there.
+That builds here with Node 22, copies the app and systemd units to the droplet, and restarts `ai-briefing-app`. When `package-lock.json` changes (or the last server install failed), the script also runs `npm ci --omit=dev --ignore-scripts` on the droplet. `node build` loads the runtime `dependencies` (`better-sqlite3`, `drizzle-orm`) from there.
 
 ## CI/CD
 
@@ -45,15 +45,15 @@ Repo secrets: `DEPLOY_SSH_KEY` (the CI key's private half; its only copy), and `
 
 ## Hosting
 
-Visitors reach `eh-ai-blast.app` through Cloudflare, which forwards over a Cloudflare Tunnel to `cloudflared` on the droplet, then to Caddy on `127.0.0.1:8080` and the app on `:3000`. The tunnel is an outbound connection, so the droplet takes no inbound web traffic. People SSH over Tailscale (`ssh ai-briefing-do`, MagicDNS name `ai-briefing-do`), and CI through the tunnel (see CI/CD), so the DigitalOcean firewall (`infra/main.tf`) has no inbound rules at all and `ufw` only allows port 22 on `tailscale0`. Root login and passwords are off. The droplet is `tag:ai-briefing-do` in the tailnet policy, which lets your devices reach its port 22 and gives it no access to anything else on the tailnet. If Tailscale is down, use the Droplet Console in DigitalOcean. Cloudflare rate-limits `/search` and `/api/v1/search` per IP (`infra/cloudflare.tf`).
+Visitors reach `eh-ai-blast.app` through Cloudflare, which forwards over a Cloudflare Tunnel to `cloudflared` on the droplet, then to the app on `127.0.0.1:3000`. The app sets the security headers (`src/hooks.server.ts`) and CSP (`vite.config.ts`). Static files skip the hook, so Cloudflare also sets `X-Content-Type-Options: nosniff` on every response (`infra/cloudflare.tf`), and it compresses responses. The tunnel is an outbound connection, so the droplet takes no inbound web traffic. People SSH over Tailscale (`ssh ai-briefing-do`, MagicDNS name `ai-briefing-do`), and CI through the tunnel (see CI/CD), so the DigitalOcean firewall (`infra/main.tf`) has no inbound rules at all and `ufw` only allows port 22 on `tailscale0`. Root login and passwords are off. The droplet is `tag:ai-briefing-do` in the tailnet policy, which lets your devices reach its port 22 and gives it no access to anything else on the tailnet. If Tailscale is down, use the Droplet Console in DigitalOcean. Cloudflare rate-limits `/search` and `/api/v1/search` per IP (`infra/cloudflare.tf`).
 
-Error pages: the app renders its own errors (404, 400, 500…) in the site layout with `src/routes/+error.svelte`, falling back to the static `src/error.html` if the layout itself fails. When the app is down or restarting, Caddy answers 503 with `deploy/errors/unavailable.html` (installed to `/etc/caddy/errors/` by `npm run deploy`). Errors raised before the request reaches Caddy (the search rate limit's 429, a tunnel outage) are still Cloudflare's own pages.
+Error pages: the app renders its own errors (404, 400, 500…) in the site layout with `src/routes/+error.svelte`, falling back to the static `src/error.html` if the layout itself fails. When the app is down or restarting, and for errors raised before a request reaches it (the search rate limit's 429, a tunnel outage), visitors get Cloudflare's own error pages.
 
 `deploy/provision.sh` set up the droplet once (packages, users, directories, `ufw`, sshd). After it, `sudo tailscale up --advertise-tags=tag:ai-briefing-do --hostname=ai-briefing-do` joined the tailnet, `cloudflared service install` took the tunnel token from `terraform output -raw tunnel_token`, and `/etc/ai-briefing/drive-key.json` was copied over by hand. To provision a new droplet, first add a temporary inbound SSH rule for your IP to `digitalocean_firewall.ai_briefing`, and remove it once Tailscale is up.
 
 ## Hardening on the droplet
 
-`ai-briefing-app.service` runs sandboxed (`systemd-analyze security ai-briefing-app` ≈ 1.7): the filesystem is read-only to it, including its own code, and it has no capabilities. Before the app starts, the unit loads `deploy/ai-briefing-egress.nft` (installed to `/etc/ai-briefing/egress.nft`), which rejects every non-loopback connection the `briefing` and `caddy` users open, so neither the app nor Caddy can reach the network. (It was written for CT 101, an LXC container where systemd's `IPAddressDeny` does nothing.) Anything else run as `briefing` (e.g. `npm install`) is blocked too; install packages as `evanh`.
+`ai-briefing-app.service` runs sandboxed (`systemd-analyze security ai-briefing-app` ≈ 1.7): the filesystem is read-only to it, including its own code, and it has no capabilities. Before the app starts, the unit loads `deploy/ai-briefing-egress.nft` (installed to `/etc/ai-briefing/egress.nft`), which rejects every non-loopback connection the `briefing` user opens, so the app can't reach the network. (It was written for CT 101, an LXC container where systemd's `IPAddressDeny` does nothing.) Anything else run as `briefing` (e.g. `npm install`) is blocked too; install packages as `evanh`.
 
 ## Briefing ingest (Drive pull)
 
