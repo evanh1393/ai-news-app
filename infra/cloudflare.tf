@@ -124,3 +124,14 @@ resource "cloudflare_zero_trust_access_application" "ssh" {
     { id = cloudflare_zero_trust_access_policy.ci.id, precedence = 1 },
   ]
 }
+
+# Crawlers, AI agents, and AI training are all welcome (static/robots.txt says so). These keep
+# Cloudflare from blocking AI bots or serving its own opt-out robots.txt in front of ours.
+resource "cloudflare_bot_management" "site" {
+  zone_id                     = data.cloudflare_zone.site.zone_id
+  ai_bots_protection          = "disabled"
+  crawler_protection          = "disabled"
+  is_robots_txt_managed       = false
+  bot_preference_sync_enabled = false
+  cf_robots_variant           = "off"
+}

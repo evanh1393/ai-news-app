@@ -1,0 +1,4 @@
+# Search engines, AI agents, and AI training are all welcome.
+User-agent: *
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+Allow: /
