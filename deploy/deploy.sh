@@ -69,9 +69,17 @@ echo "syncing build"
 rsync -rl --delete "$root/build/" "${host}:${remote}/build/"
 
 echo "authorizing the CI deploy key"
-# Only usable from 127.0.0.1, i.e. through the Cloudflare Tunnel (see deploy.yml). Idempotent.
-ssh "$host" "grep -qxF '$(cat "$root/deploy/ci_authorized_key")' ~/.ssh/authorized_keys || cat >> ~/.ssh/authorized_keys" \
-  < "$root/deploy/ci_authorized_key"
+# Only usable from 127.0.0.1, i.e. through the Cloudflare Tunnel (see deploy.yml). Replaces any other
+# line with the ai-briefing-ci-deploy comment, so rotating the key also revokes the old one. Idempotent.
+ssh "$host" 'set -euo pipefail
+  key=$(cat)
+  [ -n "$key" ]
+  f=~/.ssh/authorized_keys
+  # grep exits 1 when every line is a CI key (fine) and 2 on an error (stop before touching the file).
+  grep -vF ai-briefing-ci-deploy "$f" > "$f.tmp" || [ $? -eq 1 ]
+  printf "%s\n" "$key" >> "$f.tmp"
+  chmod 600 "$f.tmp"
+  mv "$f.tmp" "$f"' < "$root/deploy/ci_authorized_key"
 
 echo "installing systemd units and egress firewall"
 scp "$root/deploy/ai-briefing-app.service" "${host}:/tmp/ai-briefing-app.service"
