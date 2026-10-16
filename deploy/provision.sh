@@ -11,10 +11,10 @@ apt-get update
 apt-get -y upgrade
 apt-get -y install ca-certificates curl gnupg rsync sudo nftables ufw unattended-upgrades ncurses-term
 
-# Node 22 from NodeSource, same as CT 101.
+# Node 26 from NodeSource. Keep in step with node_major in deploy/deploy.sh and deploy.yml.
 curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
   | gpg --dearmor --yes -o /usr/share/keyrings/nodesource.gpg
-echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main" \
+echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_26.x nodistro main" \
   > /etc/apt/sources.list.d/nodesource.list
 
 # cloudflared, for the tunnel. The token is installed separately (see README).

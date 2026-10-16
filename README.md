@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-Production is Node 22. `npm run dev` reads `data/briefing.db` (gitignored), or whatever `BRIEFING_DB` points at. If that file is missing, `npm run dev` first pulls a copy from the droplet over SSH. Run `npm run db:pull` to refresh it. The data dir isn't readable by `evanh`, so the pull reads it with `sudo`.
+Production is Node 26. `npm run dev` reads `data/briefing.db` (gitignored), or whatever `BRIEFING_DB` points at. If that file is missing, `npm run dev` first pulls a copy from the droplet over SSH. Run `npm run db:pull` to refresh it. The data dir isn't readable by `evanh`, so the pull reads it with `sudo`.
 
 `npm test` runs the ingest tests (`node:test`, `ingest/*.test.js`), then the app's (Vitest, `src/**/*.test.ts`: `src/lib`, `db.ts`, the route loaders and the `/api/v1` handlers). Vitest points `BRIEFING_DB` at a temp database built from the migrations and a few sample briefings (`src/lib/server/test-fixture.ts`), never `data/briefing.db`. `npx vitest` reruns them on save.
 
@@ -35,7 +35,7 @@ A day older than the latest is cached for a day; everything else for 5 minutes, 
 npm run deploy
 ```
 
-That builds here with Node 22, copies the app and systemd units to the droplet, and restarts `ai-briefing-app`. When `package-lock.json` changes (or the last server install failed), the script also runs `npm ci --omit=dev --ignore-scripts` on the droplet. `node build` loads the runtime `dependencies` (`better-sqlite3`, `drizzle-orm`) from there.
+That builds here with Node 26, copies the app and systemd units to the droplet, and restarts `ai-briefing-app`. When `package-lock.json` changes (or the last server install failed), the script also runs `npm ci --omit=dev --ignore-scripts` on the droplet. `node build` loads the runtime `dependencies` (`better-sqlite3`, `drizzle-orm`) from there.
 
 ## CI/CD
 
