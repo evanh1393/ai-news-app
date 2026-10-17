@@ -84,16 +84,18 @@ ssh "$host" 'set -euo pipefail
   chmod 600 "$f.tmp"
   mv "$f.tmp" "$f"' < "$root/deploy/ci_authorized_key"
 
-echo "installing systemd units and egress firewall"
+echo "installing systemd units"
 scp "$root/deploy/ai-briefing-app.service" "${host}:/tmp/ai-briefing-app.service"
 scp "$root/deploy/briefing-pull.service" "$root/deploy/briefing-pull.timer" "${host}:/tmp/"
-scp "$root/deploy/ai-briefing-egress.nft" "${host}:/tmp/ai-briefing-egress.nft"
 ssh "$host" 'set -euo pipefail
-  sudo nft -c -f /tmp/ai-briefing-egress.nft
   sudo cp /tmp/ai-briefing-app.service /etc/systemd/system/ai-briefing-app.service
   sudo cp /tmp/briefing-pull.service /tmp/briefing-pull.timer /etc/systemd/system/
-  sudo install -D -m 644 /tmp/ai-briefing-egress.nft /etc/ai-briefing/egress.nft
-  rm -f /tmp/ai-briefing-app.service /tmp/ai-briefing-egress.nft \
+  # Left over from the nftables egress firewall (now IPAddressDeny in the app unit). Idempotent.
+  if command -v nft >/dev/null && sudo nft list table inet ai_briefing_egress >/dev/null 2>&1; then
+    sudo nft delete table inet ai_briefing_egress
+  fi
+  sudo rm -f /etc/ai-briefing/egress.nft
+  rm -f /tmp/ai-briefing-app.service \
     /tmp/briefing-pull.service /tmp/briefing-pull.timer
   sudo systemctl daemon-reload
   sudo systemctl enable --quiet briefing-pull.timer ai-briefing-app

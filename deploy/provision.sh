@@ -9,7 +9,7 @@ export DEBIAN_FRONTEND=noninteractive
 
 apt-get update
 apt-get -y upgrade
-apt-get -y install ca-certificates curl gnupg rsync sudo nftables ufw unattended-upgrades ncurses-term
+apt-get -y install ca-certificates curl gnupg rsync sudo ufw unattended-upgrades ncurses-term
 
 # Node 26 from NodeSource. Keep in step with node_major in deploy/deploy.sh and deploy.yml.
 curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \

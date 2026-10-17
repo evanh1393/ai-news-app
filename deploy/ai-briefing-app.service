@@ -12,8 +12,6 @@ Environment=HOST=127.0.0.1
 Environment=PORT=3000
 Environment=BRIEFING_DB=/opt/ai-briefing/data/briefing.db
 Environment=NODE_OPTIONS=--disable-warning=ExperimentalWarning
-# "+" runs this as root, outside the sandbox below.
-ExecStartPre=+/usr/sbin/nft -f /etc/ai-briefing/egress.nft
 ExecStart=/usr/bin/node build
 Restart=always
 RestartSec=3
@@ -38,6 +36,9 @@ RestrictNamespaces=yes
 RestrictRealtime=yes
 LockPersonality=yes
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+# No network beyond loopback: cloudflared reaches it on 127.0.0.1, and it calls nothing outside.
+IPAddressDeny=any
+IPAddressAllow=localhost
 SystemCallArchitectures=native
 SystemCallFilter=@system-service
 
