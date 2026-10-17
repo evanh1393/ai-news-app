@@ -11,8 +11,6 @@ WorkingDirectory=/opt/ai-briefing/app
 Environment=BRIEFING_DB=/opt/ai-briefing/data/briefing.db
 Environment=DRIVE_KEY=/etc/ai-briefing/drive-key.json
 Environment=DRIVE_FOLDER_ID=11AOFN-eH7oDUXnxa4RABCxc2HQDNBw3f
-# "+" runs this as root, outside the sandbox below. Limits briefing-pull to DNS and HTTPS.
-ExecStartPre=+/usr/sbin/nft -f /etc/ai-briefing/egress.nft
 ExecStart=/usr/bin/node ingest/pull.js
 TimeoutStartSec=5min
 
