@@ -91,7 +91,8 @@ ssh "$host" 'set -euo pipefail
   sudo cp /tmp/ai-briefing-app.service /etc/systemd/system/ai-briefing-app.service
   sudo cp /tmp/briefing-pull.service /tmp/briefing-pull.timer /etc/systemd/system/
   # Left over from the nftables egress firewall (now IPAddressDeny in the app unit). Idempotent.
-  if command -v nft >/dev/null && sudo nft list table inet ai_briefing_egress >/dev/null 2>&1; then
+  # No `command -v nft`: nft is in /usr/sbin, which a non-interactive ssh PATH lacks; sudo has it.
+  if sudo nft list table inet ai_briefing_egress >/dev/null 2>&1; then
     sudo nft delete table inet ai_briefing_egress
   fi
   sudo rm -f /etc/ai-briefing/egress.nft
