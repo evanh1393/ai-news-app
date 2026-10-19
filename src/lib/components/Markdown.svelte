@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { inlineTokens, linkHost, type Token } from '#lib/inline-md.js';
+	import { inlineTokens, linkHost, type Token } from '#shared/inline-md.js';
 
 	// Renders stored markdown as Svelte text, so the only markup is what the tokens produce here.
 	// Links open in a new tab and show their host unless the label already is it. Lines are joined with <br>. With `paragraphs`, blank lines split the text into <p>s; without, it stays inline.

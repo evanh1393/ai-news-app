@@ -1,7 +1,7 @@
 // Helpers for the read-only JSON API under /api/v1. Responses are plain text, never markdown or HTML:
-// src/lib/api-shape.js shapes the rows.
+// shared/api-shape.js shapes the rows.
 import { isHttpError, json, type RequestEvent } from '@sveltejs/kit';
-import { apiBriefingSummary } from '../api-shape.js';
+import { apiBriefingSummary } from '#shared/api-shape.js';
 import type { BriefingSummary, Page } from './db';
 
 // briefing-pull adds a day's briefing hourly and re-ingests a file Grok Bot rewrites, so only an

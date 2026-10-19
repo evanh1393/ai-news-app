@@ -1,8 +1,8 @@
-// npm test: /api/v1 output is plain text (src/lib/api-shape.js).
+// npm test: /api/v1 output is plain text (shared/api-shape.js).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import Database from 'better-sqlite3';
-import { apiBriefing, apiBriefingSummary, apiHits, apiSource } from '../src/lib/api-shape.js';
+import { apiBriefing, apiBriefingSummary, apiHits, apiSource } from '../shared/api-shape.js';
 import { migrate, openWriter } from './apply.js';
 import { parseBriefing } from './briefing-md.js';
 import { parseSources } from './sources-md.js';

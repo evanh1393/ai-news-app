@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Markdown from '#lib/components/Markdown.svelte';
-	import { plainText } from '#lib/inline-md.js';
+	import { plainText } from '#shared/inline-md.js';
 	import type { FullBriefing } from '#lib/server/db.js';
 
 	let { briefing }: { briefing: FullBriefing } = $props();

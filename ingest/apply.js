@@ -2,7 +2,7 @@
 // so re-ingesting a day is safe and other days' rows (and item IDs) are untouched. sources.md
 // replaces the sources table the same way.
 import { readdirSync, readFileSync } from 'node:fs';
-import { itemSummary } from '../src/lib/inline-md.js';
+import { itemSummary } from '../shared/inline-md.js';
 
 /**
  * @typedef {import('better-sqlite3').Database} Db
