@@ -22,6 +22,8 @@ WORKDIR /app
 COPY package.json ./
 COPY --from=deps /app/node_modules node_modules/
 COPY --from=build /app/build build/
+# Matches ingest/Dockerfile: whichever image creates the volume first, it ends up owned by node.
+RUN mkdir /data && chown node:node /data
 
 # 0.0.0.0 inside the container; compose decides who can reach it.
 ENV NODE_ENV=production \
