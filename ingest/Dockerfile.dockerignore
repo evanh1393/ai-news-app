@@ -1,0 +1,9 @@
+# Only what ingest/Dockerfile copies; the context is the repo root, which holds data/, .env and Terraform state.
+*
+!package.json
+!package-lock.json
+!shared/
+!ingest/
+ingest/*.test.js
+ingest/check-migrations.sh
+ingest/Dockerfile*
