@@ -6,8 +6,9 @@ import { execSync } from 'node:child_process';
 import { defineConfig } from 'vite';
 
 // The commit this build came from, shown in the site footer so a deploy is easy to confirm.
-// "-dirty" marks a laptop build with uncommitted changes.
+// "-dirty" marks a laptop build with uncommitted changes. Image builds have no .git, so they pass APP_VERSION.
 function gitVersion() {
+	if (process.env.APP_VERSION) return process.env.APP_VERSION;
 	try {
 		const git = (args: string) => execSync(`git ${args}`, { encoding: 'utf8' }).trim();
 		return git('rev-parse --short=7 HEAD') + (git('status --porcelain') ? '-dirty' : '');
