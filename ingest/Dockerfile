@@ -10,6 +10,8 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 COPY shared/ shared/
 COPY ingest/ ingest/
+# A new volume takes this ownership, so ingest (node) can write it.
+RUN mkdir /data && chown node:node /data
 
 ENV BRIEFING_DB=/data/briefing.db \
     DRIVE_KEY=/run/secrets/drive-key.json
