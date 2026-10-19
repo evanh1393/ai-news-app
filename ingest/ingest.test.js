@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import Database from 'better-sqlite3';
-import { apiText, inlineTokens, itemSummary, linkHost, plainText } from '../src/lib/inline-md.js';
+import { apiText, inlineTokens, itemSummary, linkHost, plainText } from '../shared/inline-md.js';
 import { getTableConfig } from 'drizzle-orm/sqlite-core';
 import * as schema from '../src/lib/server/schema.ts';
 import { AFTER_MIGRATION, migrate, migrations, openWriter, verify } from './apply.js';

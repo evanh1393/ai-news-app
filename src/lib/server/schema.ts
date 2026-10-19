@@ -1,6 +1,6 @@
 // Drizzle tables for /opt/ai-briefing/data/briefing.db. The schema lives in ingest/migrations/*.sql;
 // this file only mirrors it for typed reads, so update it alongside each migration and never generate
-// or run Drizzle migrations against it. *_md columns hold inline markdown (src/lib/inline-md.js);
+// or run Drizzle migrations against it. *_md columns hold inline markdown (shared/inline-md.js);
 // the rest is plain text.
 // items_fts (FTS5) and drive_files aren't modelled; search() queries items_fts with raw SQL.
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';

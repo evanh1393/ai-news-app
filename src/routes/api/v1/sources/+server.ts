@@ -1,4 +1,4 @@
-import { apiSource } from '#lib/api-shape.js';
+import { apiSource } from '#shared/api-shape.js';
 import { listSources } from '#lib/server/db.js';
 import { CACHE_SHORT, api, ok } from '#lib/server/api.js';
 import type { RequestHandler } from './$types';

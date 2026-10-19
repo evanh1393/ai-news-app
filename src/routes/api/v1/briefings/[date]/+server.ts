@@ -1,4 +1,4 @@
-import { apiBriefing } from '#lib/api-shape.js';
+import { apiBriefing } from '#shared/api-shape.js';
 import { getBriefing, latestDate } from '#lib/server/db.js';
 import { CACHE_PAST, CACHE_SHORT, api, fail, isDate, ok } from '#lib/server/api.js';
 import type { RequestHandler } from './$types';

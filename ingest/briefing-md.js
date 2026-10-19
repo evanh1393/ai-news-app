@@ -1,7 +1,7 @@
 // Strict parser for Grok Bot's daily briefing-YYYY-MM-DD.md (format spec: DRIVE_FORMAT.md on its side).
 // Anything off-format throws, so a bad file is skipped instead of half-ingested. Text is stored as
-// markdown, not HTML; the app renders it through src/lib/inline-md.js, so raw HTML stays literal text.
-import { ITEM, inlineTokens, itemSummary } from '../src/lib/inline-md.js';
+// markdown, not HTML; the app renders it through shared/inline-md.js, so raw HTML stays literal text.
+import { ITEM, inlineTokens, itemSummary } from '../shared/inline-md.js';
 
 const MAX_BYTES = 512 * 1024;
 const MAX_ITEMS = 200;
