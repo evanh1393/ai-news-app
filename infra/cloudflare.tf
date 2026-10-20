@@ -1,4 +1,4 @@
-# Public traffic: eh-ai-blast.app -> Cloudflare -> tunnel -> cloudflared on the droplet -> node :3000.
+# Public traffic: eh-ai-blast.app -> Cloudflare -> ai-briefing-web tunnel -> the cloudflared container -> app:3000.
 # CI deploys: ssh.eh-ai-blast.app -> Access (service token) -> tunnel -> sshd on 127.0.0.1:22.
 # cloudflared connects out, so the droplet takes no inbound connections (people SSH over Tailscale).
 
@@ -53,7 +53,7 @@ data "cloudflare_zero_trust_tunnel_cloudflared_token" "ai_briefing" {
 
 # The web tunnel, run by the cloudflared container in compose.yaml. It's separate from ai_briefing because
 # that container can only reach the app's internal network, not the host's sshd; ai_briefing stays on the
-# host for CI's SSH. The apex record still points at ai_briefing until the cutover to containers.
+# host for CI's SSH.
 resource "cloudflare_zero_trust_tunnel_cloudflared" "ai_briefing_web" {
   account_id = local.cf_account_id
   name       = "ai-briefing-web"
@@ -88,7 +88,7 @@ resource "cloudflare_dns_record" "apex" {
   zone_id = data.cloudflare_zone.site.zone_id
   name    = local.domain
   type    = "CNAME"
-  content = "${cloudflare_zero_trust_tunnel_cloudflared.ai_briefing.id}.cfargotunnel.com"
+  content = "${cloudflare_zero_trust_tunnel_cloudflared.ai_briefing_web.id}.cfargotunnel.com"
   proxied = true
   ttl     = 1 # automatic; required for proxied records
 }
