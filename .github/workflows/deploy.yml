@@ -45,6 +45,35 @@ jobs:
           path: build/
           retention-days: 1
 
+  # The app and ingest images (Dockerfile, ingest/Dockerfile). Every PR builds them; main pushes them to
+  # GHCR tagged with the short commit SHA. The builds run dependency code, as the check job does, and
+  # this job has no deploy credentials: only a token that can push these packages.
+  images:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build
+        run: |
+          tag=${GITHUB_SHA::7}
+          docker build --build-arg APP_VERSION="$tag" -t "ghcr.io/evanh1393/ai-news-app-app:$tag" .
+          docker build -f ingest/Dockerfile -t "ghcr.io/evanh1393/ai-news-app-ingest:$tag" .
+      - name: Push
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          tag=${GITHUB_SHA::7}
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+          docker push "ghcr.io/evanh1393/ai-news-app-app:$tag"
+          docker push "ghcr.io/evanh1393/ai-news-app-ingest:$tag"
+          docker logout ghcr.io
+
   deploy:
     needs: check
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
