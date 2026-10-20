@@ -57,6 +57,9 @@ services:
     secrets:
       - source: drive_key
         target: drive-key.json
+    # Secrets keep their host owner and mode. On the droplet the key is root:briefing-pull 0640, so ingest
+    # joins that group (DRIVE_KEY_GID=983 in .env there); uid 1000 is evanh on the host, so no chown to it.
+    group_add: ["${DRIVE_KEY_GID:-1000}"]
     volumes:
       - data:/data
     networks: [egress]
