@@ -11,6 +11,11 @@ output "tunnel_token" {
   sensitive = true
 }
 
+output "web_tunnel_token" {
+  value     = data.cloudflare_zero_trust_tunnel_cloudflared_token.ai_briefing_web.token
+  sensitive = true
+}
+
 output "ci_access_client_id" {
   value = cloudflare_zero_trust_access_service_token.ci.client_id
 }

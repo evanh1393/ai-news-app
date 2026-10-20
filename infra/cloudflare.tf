@@ -51,6 +51,39 @@ data "cloudflare_zero_trust_tunnel_cloudflared_token" "ai_briefing" {
   tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.ai_briefing.id
 }
 
+# The web tunnel, run by the cloudflared container in compose.yaml. It's separate from ai_briefing because
+# that container can only reach the app's internal network, not the host's sshd; ai_briefing stays on the
+# host for CI's SSH. The apex record still points at ai_briefing until the cutover to containers.
+resource "cloudflare_zero_trust_tunnel_cloudflared" "ai_briefing_web" {
+  account_id = local.cf_account_id
+  name       = "ai-briefing-web"
+  config_src = "cloudflare"
+}
+
+resource "cloudflare_zero_trust_tunnel_cloudflared_config" "ai_briefing_web" {
+  account_id = local.cf_account_id
+  tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.ai_briefing_web.id
+
+  config = {
+    ingress = [
+      {
+        hostname = local.domain
+        # The app's compose service name, on the internal network it shares with cloudflared.
+        service = "http://app:3000"
+      },
+      {
+        service = "http_status:404"
+      },
+    ]
+  }
+}
+
+# The token compose.yaml reads from SECRETS_DIR/tunnel-token: `terraform output -raw web_tunnel_token`.
+data "cloudflare_zero_trust_tunnel_cloudflared_token" "ai_briefing_web" {
+  account_id = local.cf_account_id
+  tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.ai_briefing_web.id
+}
+
 resource "cloudflare_dns_record" "apex" {
   zone_id = data.cloudflare_zone.site.zone_id
   name    = local.domain

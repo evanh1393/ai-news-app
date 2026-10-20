@@ -1,0 +1,76 @@
+# The app, the web tunnel that serves it, and ingest, which a host timer runs as
+# `docker compose run --rm ingest`. Ingest writes briefing.db to the data volume and the app reads it.
+#
+# Networks: the app is only on `web`, which is internal, so it can't connect out (what IPAddressDeny
+# did under systemd). cloudflared is on `web` and `egress`, so it reaches the app and Cloudflare. No port
+# is published on the host. CI's SSH stays on the host's own cloudflared (the ai-briefing tunnel).
+#
+# Secrets are files on the host, in SECRETS_DIR (default /etc/ai-briefing): drive-key.json and
+# tunnel-token (`terraform output -raw web_tunnel_token`).
+name: ai-news-app
+
+x-locked-down: &locked-down
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+
+services:
+  app:
+    <<: *locked-down
+    build:
+      context: .
+      args:
+        APP_VERSION: ${APP_VERSION:-unknown}
+    image: ghcr.io/evanh1393/ai-news-app-app:${TAG:-latest}
+    restart: unless-stopped
+    tmpfs: [/tmp]
+    volumes:
+      - data:/data:ro
+    networks: [web]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+
+  cloudflared:
+    <<: *locked-down
+    image: cloudflare/cloudflared:2026.9.3
+    # Routing for this tunnel lives in Cloudflare (infra/cloudflare.tf): eh-ai-blast.app -> http://app:3000.
+    command: tunnel --no-autoupdate run --token-file /run/secrets/tunnel_token
+    restart: unless-stopped
+    secrets: [tunnel_token]
+    networks: [web, egress]
+    depends_on:
+      app:
+        condition: service_healthy
+
+  ingest:
+    <<: *locked-down
+    build:
+      context: .
+      dockerfile: ingest/Dockerfile
+    image: ghcr.io/evanh1393/ai-news-app-ingest:${TAG:-latest}
+    # Only runs when asked (`docker compose run --rm ingest`); `up` leaves it alone.
+    profiles: [ingest]
+    tmpfs: [/tmp]
+    secrets:
+      - source: drive_key
+        target: drive-key.json
+    volumes:
+      - data:/data
+    networks: [egress]
+
+secrets:
+  tunnel_token:
+    file: ${SECRETS_DIR:-/etc/ai-briefing}/tunnel-token
+  drive_key:
+    file: ${SECRETS_DIR:-/etc/ai-briefing}/drive-key.json
+
+volumes:
+  data:
+
+networks:
+  web:
+    internal: true
+  egress:

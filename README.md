@@ -69,6 +69,17 @@ Error pages: the app renders its own errors (404, 400, 500…) in the site layou
 
 `ai-briefing-app.service` runs sandboxed (`systemd-analyze security ai-briefing-app` ≈ 1.7): the filesystem is read-only to it, including its own code, and it has no capabilities. `IPAddressDeny=any` with `IPAddressAllow=localhost` limits it to loopback, so it can't open or accept any other connection; cloudflared reaches it on `127.0.0.1`. (An nftables egress firewall did this on CT 101, an LXC container where systemd ignored `IPAddressDeny`.)
 
+## Containers (in progress)
+
+Production still runs on systemd (above); these replace it at the cutover. `Dockerfile` builds the app and `ingest/Dockerfile` builds ingest, and `compose.yaml` runs them with cloudflared. Every container has a read-only filesystem, no capabilities and `no-new-privileges`. The app is only on an internal network, so it can't connect out, and it mounts the data volume read-only. Only cloudflared and ingest can reach the internet. No port is published on the host. cloudflared serves the separate `ai-briefing-web` tunnel (`infra/cloudflare.tf`), because from inside compose it can't reach the host's sshd, so the existing tunnel stays on the host for CI's SSH.
+
+The secrets are files in `SECRETS_DIR` (default `/etc/ai-briefing`): `drive-key.json` and `tunnel-token` (`terraform output -raw web_tunnel_token`). Compose bind-mounts them with their host permissions, so ingest (uid 1000) and cloudflared (uid 65532) must be able to read them.
+
+```bash
+APP_VERSION=$(git rev-parse --short=7 HEAD) docker compose up -d --build   # app + cloudflared
+docker compose run --rm ingest                                             # one pull; --check etc. pass through
+```
+
 ## Briefing ingest (Drive pull)
 
 Grok Bot writes `briefing-YYYY-MM-DD.md` to the "AI Briefings" Google Drive folder. The same folder holds `sources.md`, the source list Grok Bot reads at the start of each run. Grok Bot only reads it; we edit it. It's the only copy, so edit or replace it there and both the bot and the Sources page pick it up (`ingest/sources-md.js` has the format, and an off-format upload is skipped, leaving the old list). The droplet pulls both: `briefing-pull.timer` runs `ingest/pull.js` as `briefing-pull` at 8:00 AM ET and hourly at :10. It authenticates with a service account (`/etc/ai-briefing/drive-key.json`) that has no project roles, only a Viewer share on that folder. New or changed files are validated strictly (`ingest/briefing-md.js`; off-format files are logged and skipped) and upserted one date at a time into a copy of `briefing.db` that is then renamed into place (the previous file is kept as `briefing.db.prev`). `briefing-pull` is sandboxed the same way except for the network, which it needs for Google. `npm run deploy` also runs it once, before restarting the app.
