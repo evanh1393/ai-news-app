@@ -1,0 +1,11 @@
+# The app image (Dockerfile) gets only what it builds from; the repo root also holds data/, .env and
+# Terraform state. ingest/Dockerfile.dockerignore covers the ingest image.
+*
+!package.json
+!package-lock.json
+!vite.config.ts
+!tsconfig.json
+!src/
+!static/
+!shared/
+src/**/*.test.ts
