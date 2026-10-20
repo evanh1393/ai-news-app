@@ -51,15 +51,6 @@ ssh "$host" "set -euo pipefail
   # Drop the app and ingest images of earlier deploys; a rollback pulls its tag again.
   old=\$(sudo docker image ls --format '{{.Repository}}:{{.Tag}}' \
     | grep '^ghcr.io/evanh1393/ai-news-app-' | grep -v ':$tag\$' || true)
-  if [ -n \"\$old\" ]; then sudo docker image rm \$old >/dev/null; fi
-
-  # One-time, from the move to containers (2026-10): the app ran as ai-briefing-app.service. Only after
-  # the containers are healthy, so a failed first deploy leaves it running. Remove once it's gone.
-  if [ -f /etc/systemd/system/ai-briefing-app.service ]; then
-    sudo systemctl disable --now --quiet ai-briefing-app
-    sudo rm /etc/systemd/system/ai-briefing-app.service
-    sudo systemctl daemon-reload
-    echo 'removed ai-briefing-app.service'
-  fi"
+  if [ -n \"\$old\" ]; then sudo docker image rm \$old >/dev/null; fi"
 
 echo "deployed $tag"

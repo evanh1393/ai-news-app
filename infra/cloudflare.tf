@@ -27,6 +27,12 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "ai_briefing" {
   config = {
     ingress = [
       {
+        hostname = local.domain
+        # 127.0.0.1, not localhost: the app binds IPv4 only (HOST in ai-briefing-app.service), and
+        # localhost can resolve to ::1.
+        service = "http://127.0.0.1:3000"
+      },
+      {
         # CI deploys over SSH through the tunnel, behind the Access app below. Port 22 stays closed
         # to the internet.
         hostname = "ssh.${local.domain}"
