@@ -73,7 +73,7 @@ Error pages: the app renders its own errors (404, 400, 500…) in the site layou
 
 Production still runs on systemd (above); these replace it at the cutover. `Dockerfile` builds the app and `ingest/Dockerfile` builds ingest, and `compose.yaml` runs them with cloudflared. Every container has a read-only filesystem, no capabilities and `no-new-privileges`. The app is only on an internal network, so it can't connect out, and it mounts the data volume read-only. Only cloudflared and ingest can reach the internet. No port is published on the host. cloudflared serves the separate `ai-briefing-web` tunnel (`infra/cloudflare.tf`), because from inside compose it can't reach the host's sshd, so the existing tunnel stays on the host for CI's SSH.
 
-The secrets are files in `SECRETS_DIR` (default `/etc/ai-briefing`): `drive-key.json` and `tunnel-token` (`terraform output -raw web_tunnel_token`). Compose bind-mounts them with their host permissions, so ingest (uid 1000) and cloudflared (uid 65532) must be able to read them.
+The secrets are files in `SECRETS_DIR` (default `/etc/ai-briefing`): `drive-key.json` and `tunnel-token` (`terraform output -raw web_tunnel_token`). Compose bind-mounts them with their host permissions. cloudflared (uid 65532) reads `tunnel-token`, so it's `65532:65532 0400`. `drive-key.json` stays `root:briefing-pull 0640`, and ingest (uid 1000, which is `evanh` on the droplet) reads it by joining the group: set `DRIVE_KEY_GID` to `briefing-pull`'s gid in a `.env` next to `compose.yaml`.
 
 ```bash
 APP_VERSION=$(git rev-parse --short=7 HEAD) docker compose up -d --build   # app + cloudflared
