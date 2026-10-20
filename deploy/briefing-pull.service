@@ -1,39 +1,13 @@
 [Unit]
 Description=Pull Grok Bot's briefing markdown from Google Drive into briefing.db
-After=network-online.target
+After=network-online.target docker.service
 Wants=network-online.target
+Requires=docker.service
 
+# Runs the ingest container (compose.yaml), which is sandboxed there: read-only, no capabilities,
+# drive-key.json mounted read-only, and only the data volume writable.
 [Service]
 Type=oneshot
-User=briefing-pull
-Group=briefing-pull
-WorkingDirectory=/opt/ai-briefing/app
-Environment=BRIEFING_DB=/opt/ai-briefing/data/briefing.db
-Environment=DRIVE_KEY=/etc/ai-briefing/drive-key.json
-Environment=DRIVE_FOLDER_ID=11AOFN-eH7oDUXnxa4RABCxc2HQDNBw3f
-ExecStart=/usr/bin/node ingest/pull.js
+WorkingDirectory=/opt/ai-briefing/compose
+ExecStart=/usr/bin/docker compose run --rm --no-TTY ingest
 TimeoutStartSec=5min
-
-# Sandbox. It reads the key and app code, talks HTTPS to Google, and writes only the data dir.
-# UMask 0027 + the setgid data dir: the new DB lands as briefing-pull:briefing 640, readable by the app.
-UMask=0027
-ProtectSystem=strict
-ReadWritePaths=/opt/ai-briefing/data
-ProtectHome=yes
-PrivateTmp=yes
-PrivateDevices=yes
-NoNewPrivileges=yes
-CapabilityBoundingSet=
-RestrictSUIDSGID=yes
-ProtectKernelTunables=yes
-ProtectKernelModules=yes
-ProtectKernelLogs=yes
-ProtectControlGroups=yes
-ProtectClock=yes
-ProtectHostname=yes
-RestrictNamespaces=yes
-RestrictRealtime=yes
-LockPersonality=yes
-RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
-SystemCallArchitectures=native
-SystemCallFilter=@system-service

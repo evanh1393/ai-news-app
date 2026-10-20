@@ -6,7 +6,8 @@ set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
 host=${DEPLOY_HOST:-ai-briefing-do}
-remote=/opt/ai-briefing/data/briefing.db
+# The compose project's data volume (compose.yaml), which only root can read on the droplet.
+remote=/var/lib/docker/volumes/ai-news-app_data/_data/briefing.db
 local_db="$root/data/briefing.db"
 
 if [[ "${1:-}" == --if-missing && -f "$local_db" ]]; then
@@ -15,7 +16,6 @@ fi
 
 mkdir -p "$root/data"
 echo "pulling $host:$remote"
-# The data dir is briefing-pull:briefing 2750, so evanh reads it through sudo.
 ssh "$host" "sudo -n cat '$remote'" > "$local_db.tmp"
 node -e '
   const db = new (require("better-sqlite3"))(process.argv[1], { readonly: true });
