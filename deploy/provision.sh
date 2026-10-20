@@ -28,8 +28,13 @@ curl -fsSL https://pkgs.tailscale.com/stable/debian/trixie.noarmor.gpg \
 echo "deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg] https://pkgs.tailscale.com/stable/debian trixie main" \
   > /etc/apt/sources.list.d/tailscale.list
 
+# Docker Engine and the compose plugin, for the app and ingest containers (compose.yaml).
+curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor --yes -o /usr/share/keyrings/docker.gpg
+echo "deb [signed-by=/usr/share/keyrings/docker.gpg] https://download.docker.com/linux/debian trixie stable" \
+  > /etc/apt/sources.list.d/docker.list
+
 apt-get update
-apt-get -y install nodejs cloudflared tailscale
+apt-get -y install nodejs cloudflared tailscale docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
 # Ghostty sends TERM=xterm-ghostty over SSH. ncurses-term ships the entry only as "ghostty", so
 # alias it, or clear and full-screen programs fail with "unknown terminal type".
