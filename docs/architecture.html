@@ -1,0 +1,1542 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>eh-ai-blast Architecture</title>
+<style>
+:root {
+  --bg: #f7f6f2; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6a64; --line: #d9d6cc;
+  --accent: #c2410c; --accent-soft: #fde7d9;
+  --web: #2563eb; --web-soft: rgba(37,99,235,.08);
+  --egress: #059669; --egress-soft: rgba(5,150,105,.08);
+  --host: #7c3aed; --host-soft: rgba(124,58,237,.07);
+  --cf: #ea580c; --cf-soft: rgba(234,88,12,.08);
+  --bad: #dc2626; --ok: #16a34a;
+  --code-bg: #f1efe8; --node: #ffffff;
+  --mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141412; --panel: #1c1c19; --ink: #ecebe6; --muted: #9a988f; --line: #33322d;
+    --accent: #fb923c; --accent-soft: #3a2416;
+    --web: #60a5fa; --web-soft: rgba(96,165,250,.10);
+    --egress: #34d399; --egress-soft: rgba(52,211,153,.09);
+    --host: #a78bfa; --host-soft: rgba(167,139,250,.08);
+    --cf: #fb923c; --cf-soft: rgba(251,146,60,.09);
+    --bad: #f87171; --ok: #4ade80; --code-bg: #23231f; --node: #22221e;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141412; --panel: #1c1c19; --ink: #ecebe6; --muted: #9a988f; --line: #33322d;
+  --accent: #fb923c; --accent-soft: #3a2416;
+  --web: #60a5fa; --web-soft: rgba(96,165,250,.10);
+  --egress: #34d399; --egress-soft: rgba(52,211,153,.09);
+  --host: #a78bfa; --host-soft: rgba(167,139,250,.08);
+  --cf: #fb923c; --cf-soft: rgba(251,146,60,.09);
+  --bad: #f87171; --ok: #4ade80; --code-bg: #23231f; --node: #22221e;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 var(--sans); }
+a { color: var(--accent); }
+code, pre { font-family: var(--mono); font-size: .86em; }
+:not(pre) > code { background: var(--code-bg); padding: .1em .35em; border-radius: 4px; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 16px; }
+header.hero { padding: 48px 0 24px; border-bottom: 1px solid var(--line); }
+.hero h1 { font-size: clamp(28px, 4vw, 44px); line-height: 1.1; margin: 0 0 12px; letter-spacing: -.02em; }
+.hero p { max-width: 760px; color: var(--muted); margin: 0; }
+.eyebrow { font: 600 12px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin-bottom: 14px; }
+nav.toc { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); }
+nav.toc .wrap { display: flex; gap: 4px; overflow-x: auto; padding-top: 8px; padding-bottom: 8px; align-items: center; }
+nav.toc a { white-space: nowrap; text-decoration: none; color: var(--muted); font-size: 14px; padding: 4px 10px; border-radius: 999px; }
+nav.toc a:hover { background: var(--panel); color: var(--ink); }
+nav.toc button { margin-left: auto; }
+section { padding: 48px 0 8px; }
+section > .wrap > h2 { font-size: 28px; margin: 0 0 6px; letter-spacing: -.01em; }
+.lede { color: var(--muted); max-width: 780px; margin: 0 0 24px; }
+.num { font: 600 13px var(--mono); color: var(--accent); margin-right: 8px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+button, .btn { font: 500 14px var(--sans); color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+button:disabled { opacity: .4; cursor: default; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+/* Map */
+.map-grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; }
+@media (max-width: 960px) { .map-grid { grid-template-columns: 1fr; } }
+.map { padding: 8px; overflow: hidden; }
+.map svg { width: 100%; height: auto; display: block; }
+.detail { padding: 18px 20px; max-height: 760px; overflow: auto; }
+.detail h3 { margin: 0 0 2px; font-size: 20px; }
+.detail .kind { font: 600 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+.detail ul { padding-left: 18px; margin: 8px 0; }
+.detail li { margin: 4px 0; }
+.detail pre { background: var(--code-bg); padding: 10px 12px; border-radius: 8px; overflow-x: auto; margin: 10px 0; white-space: pre; }
+.detail .files { font: 12px var(--mono); color: var(--muted); margin-top: 10px; }
+.flowbar { padding: 12px 14px; margin-bottom: 12px; }
+.flowbar .label { font: 600 12px var(--mono); color: var(--muted); letter-spacing: .06em; text-transform: uppercase; margin-right: 6px; }
+.narr { margin-top: 12px; min-height: 64px; display: none; }
+.narr.show { display: block; }
+.narr .step-no { font: 600 12px var(--mono); color: var(--accent); }
+.narr .text { margin: 4px 0 8px; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--muted); padding: 6px 10px 2px; }
+.legend i { display: inline-block; width: 14px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: middle; border: 1.5px dashed; }
+
+svg text { font-family: var(--sans); fill: var(--ink); }
+svg .zone-label { font: 600 11px var(--mono); letter-spacing: .04em; }
+svg .node { cursor: pointer; }
+svg .node rect.box, svg .node path.box { fill: var(--node); stroke: var(--line); stroke-width: 1.5; transition: stroke .2s, filter .2s; }
+svg .node:hover rect.box, svg .node:hover path.box { stroke: var(--accent); }
+svg .node.sel rect.box, svg .node.sel path.box { stroke: var(--accent); stroke-width: 3; }
+svg .node.lit rect.box, svg .node.lit path.box { stroke: var(--accent); stroke-width: 3; filter: drop-shadow(0 0 6px var(--accent)); }
+svg .node.blocked rect.box { stroke: var(--bad); stroke-width: 2.5; }
+svg .node .t1 { font-size: 13.5px; font-weight: 600; }
+svg .node .t2 { font-size: 11px; fill: var(--muted); font-family: var(--mono); }
+svg .edge { fill: none; stroke: var(--muted); stroke-width: 1.6; opacity: .45; stroke-dasharray: 5 5; transition: opacity .2s, stroke .2s; }
+svg .edge.lit { stroke: var(--accent); opacity: 1; stroke-width: 3; stroke-dasharray: 8 6; animation: flow .6s linear infinite; }
+svg .edge.lit.rev { animation-direction: reverse; }
+svg .edge.blocked { stroke: var(--bad); opacity: 1; stroke-width: 2.5; stroke-dasharray: 2 6; }
+svg .edge.dim, svg .node.dim { opacity: .18; }
+svg .elabel { font: 10.5px var(--mono); fill: var(--muted); pointer-events: none; }
+svg .xmark { stroke: var(--bad); stroke-width: 3; }
+@keyframes flow { to { stroke-dashoffset: -14; } }
+@media (prefers-reduced-motion: reduce) { svg .edge.lit { animation: none; } }
+
+/* Code walkers */
+.walker { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 0; overflow: hidden; }
+@media (max-width: 860px) { .walker { grid-template-columns: 1fr; } }
+.walker .code { background: var(--code-bg); padding: 12px 0; overflow-x: auto; font: 13px/1.55 var(--mono); max-height: 640px; overflow-y: auto; }
+.walker .ln { display: flex; padding: 0 14px 0 0; white-space: pre; border-left: 3px solid transparent; }
+.walker .ln .n { width: 36px; text-align: right; color: var(--muted); opacity: .6; padding-right: 12px; flex: none; user-select: none; }
+.walker .ln.has { cursor: pointer; border-left-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.walker .ln.has:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.walker .ln.cur { background: var(--accent-soft); border-left-color: var(--accent); }
+.walker .ln .c { color: var(--muted); font-style: italic; }
+.walker .note { padding: 20px 22px; border-left: 1px solid var(--line); }
+.walker .note h4 { margin: 0 0 8px; font: 600 13px var(--mono); color: var(--accent); }
+.walker .note .body { font-size: 15px; }
+.walker .note .hint { color: var(--muted); font-size: 14px; }
+.tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+
+/* Stages */
+.stages { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; position: relative; }
+@media (max-width: 760px) { .stages { grid-template-columns: 1fr; } }
+.stage { padding: 14px 16px; }
+.stage h4 { margin: 0 0 4px; font: 600 14px var(--mono); }
+.stage .from { font: 12px var(--mono); color: var(--muted); }
+.stage ul { padding-left: 18px; margin: 8px 0 0; font-size: 14px; }
+.stage.final { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.chip { display: inline-block; font: 12px var(--mono); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); margin: 2px 4px 2px 0; }
+.chip.keep { border-color: var(--ok); color: var(--ok); }
+.chip.drop { border-color: var(--bad); color: var(--bad); text-decoration: line-through; }
+
+/* Context tree */
+.ctx { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; margin-top: 12px; }
+.ctx div { font: 13px var(--mono); padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); transition: all .2s; }
+.ctx div.in { border-color: var(--ok); }
+.ctx div.in::before { content: "✓ "; color: var(--ok); }
+.ctx div.out { opacity: .45; }
+.ctx div.out::before { content: "✗ "; color: var(--bad); }
+.ctx div small { display: block; color: var(--muted); font-family: var(--sans); font-size: 12px; }
+
+/* Matrix */
+table.matrix { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.matrix th, table.matrix td { padding: 9px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+table.matrix th { font: 600 12px var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+table.matrix td:first-child { font-weight: 600; }
+table.matrix tr.r:hover td { background: var(--accent-soft); cursor: pointer; }
+.y { color: var(--ok); font-weight: 600; } .n { color: var(--bad); font-weight: 600; } .m { color: var(--muted); }
+.mx-wrap { overflow-x: auto; padding: 4px 10px; }
+.mx-note { padding: 14px 18px; border-top: 1px solid var(--line); min-height: 60px; font-size: 15px; }
+
+/* Swap */
+.swap { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 16px; }
+@media (max-width: 860px) { .swap { grid-template-columns: 1fr; } }
+.swap svg { width: 100%; height: auto; }
+.swap .file rect { fill: var(--node); stroke: var(--line); stroke-width: 1.5; transition: all .35s; }
+.swap .file text { font: 12.5px var(--mono); }
+.swap .file.hidden { opacity: 0; }
+.swap .file.live rect { stroke: var(--ok); stroke-width: 2.5; }
+.swap .file.work rect { stroke: var(--accent); stroke-width: 2.5; stroke-dasharray: 5 3; }
+.swap .file.old rect { stroke: var(--muted); }
+.swap .file { transition: opacity .35s, transform .5s; }
+
+/* Cards */
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+details.card { padding: 14px 18px; }
+details.card summary { cursor: pointer; font-weight: 600; list-style: none; }
+details.card summary::before { content: "＋ "; color: var(--accent); font-family: var(--mono); }
+details.card[open] summary::before { content: "－ "; }
+details.card p, details.card ul { font-size: 15px; margin: 10px 0 0; }
+details.card ul { padding-left: 18px; }
+
+/* Timeline */
+.tl { display: grid; gap: 0; position: relative; }
+.tl-item { display: grid; grid-template-columns: 120px minmax(0,1fr); gap: 16px; padding: 12px 0; border-bottom: 1px dashed var(--line); }
+@media (max-width: 640px) { .tl-item { grid-template-columns: 1fr; gap: 4px; } }
+.tl-item .who { font: 600 12px var(--mono); color: var(--accent); padding-top: 3px; }
+.tl-item h4 { margin: 0 0 2px; font-size: 16px; }
+.tl-item p { margin: 0; font-size: 15px; color: var(--muted); }
+.tl-item.gate .who { color: var(--bad); }
+
+.cmds { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
+.cmd { padding: 12px 14px; }
+.cmd pre { margin: 0 0 6px; background: var(--code-bg); padding: 8px 10px; border-radius: 6px; overflow-x: auto; }
+.cmd p { margin: 0; font-size: 14px; color: var(--muted); }
+.cmd .where { font: 600 11px var(--mono); color: var(--accent); text-transform: uppercase; letter-spacing: .06em; }
+footer { padding: 48px 0 64px; color: var(--muted); font-size: 14px; }
+.callout { border-left: 3px solid var(--accent); padding: 10px 14px; background: var(--accent-soft); border-radius: 0 8px 8px 0; margin: 14px 0; font-size: 15px; }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">ai-news-app · project field guide · not served</div>
+    <h1>eh-ai-blast.app, end to end: what it is, how it's built, and why</h1>
+    <p>A complete description of the project: the product, the data pipeline, the app, the containers, the network, CI/CD,
+      the infrastructure-as-code, how the project got here, and the reasoning behind each decision. It's written so you can
+      explain the system to an interviewer from top to bottom and answer the follow-up questions. The map, flows, code walkthroughs and
+      scenarios are interactive. Every fact comes from a file in the repo, and the file name is listed next to it.</p>
+  </div>
+</header>
+
+<nav class="toc">
+  <div class="wrap">
+    <a href="#pitch">Pitch</a>
+    <a href="#product">Product</a>
+    <a href="#tldr">Shape</a>
+    <a href="#map">Map</a>
+    <a href="#data">Data</a>
+    <a href="#app">App</a>
+    <a href="#images">Images</a>
+    <a href="#compose">Compose</a>
+    <a href="#hardening">Hardening</a>
+    <a href="#swap">DB swap</a>
+    <a href="#deploy">CI/CD</a>
+    <a href="#infra">Infra</a>
+    <a href="#history">History</a>
+    <a href="#decisions">Decisions</a>
+    <a href="#gaps">Trade-offs</a>
+    <a href="#whatif">What if…</a>
+    <a href="#interview">Interview Qs</a>
+    <a href="#cmds">Commands</a>
+    <button id="themeBtn" title="Toggle theme">◐ Theme</button>
+  </div>
+</nav>
+
+<!-- ================= PITCH ================= -->
+<section id="pitch">
+  <div class="wrap">
+    <h2><span class="num"></span>The 60-second answer</h2>
+    <p class="lede">If an interviewer says "tell me about a project you built", this is the spoken version. Each sentence links to the section that covers it in depth.</p>
+    <div class="panel" style="padding:22px 26px; font-size:17.5px; line-height:1.7">
+      <p style="margin-top:0"><b>eh-ai-blast.app is a daily AI-news briefing site.</b> An LLM agent (Grok Bot) researches the day's AI news and writes a
+        structured markdown briefing to a Google Drive folder. My system <a href="#data">pulls those files every hour, validates them strictly, and loads them into SQLite</a>,
+        and a <a href="#app">SvelteKit app serves them</a> as pages, full-text search, and a read-only JSON API.</p>
+      <p>It runs on a <a href="#infra">single DigitalOcean droplet that accepts no inbound connections</a>. Public traffic comes in through a Cloudflare Tunnel, CI deploys over a second tunnel
+        behind Cloudflare Access, and I SSH in over Tailscale. All of it is defined in Terraform.</p>
+      <p>The workload is <a href="#map">split into two locked-down containers</a>: an <b>ingest</b> job that can reach Google and write the database, and an <b>app</b> that can only
+        <em>read</em> the database and can't open a single outbound connection. They share one volume, and ingest <a href="#swap">swaps in a verified copy of the DB with an atomic rename</a>, so
+        readers never see a half-written file and the app never needs a restart.</p>
+      <p style="margin-bottom:0">Every merge to main <a href="#deploy">builds both images, pushes them to GHCR by commit SHA, and deploys</a>: migrations run first, then the app is replaced and has to
+        pass its healthcheck. The guiding idea throughout is <b>least privilege, with each layer still safe if the one in front of it fails</b>. The LLM's output is treated as untrusted input
+        all the way from parser to CSP.</p>
+    </div>
+    <div class="cards" style="margin-top:14px">
+      <div class="panel" style="padding:14px 18px"><div class="eyebrow" style="margin-bottom:6px">Stack</div>SvelteKit 3 · Svelte 5 · TypeScript 6 · Vite 8 · Tailwind 4 + daisyUI 5 · Node 26 · better-sqlite3 + Drizzle · SQLite FTS5</div>
+      <div class="panel" style="padding:14px 18px"><div class="eyebrow" style="margin-bottom:6px">Platform</div>Docker + Compose · DigitalOcean (Debian 13, 1 vCPU / 1 GB) · Cloudflare (DNS, Tunnels, Access, WAF rules) · Tailscale · GitHub Actions · GHCR · Terraform</div>
+      <div class="panel" style="padding:14px 18px"><div class="eyebrow" style="margin-bottom:6px">Themes to stress</div>Defense in depth · untrusted-input handling · zero inbound ports · reproducible, SHA-pinned deploys · safe schema migrations · keeping it simple at this scale</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PRODUCT ================= -->
+<section id="product">
+  <div class="wrap">
+    <h2><span class="num"></span>What the product is</h2>
+    <p class="lede">A reader sees a daily briefing of AI news (new models, research, policy, outages), grouped into sections, each story with its citation links. The pipeline behind it:</p>
+    <div class="panel" style="padding:18px 20px">
+      <svg viewBox="0 0 1000 150" style="width:100%;height:auto" id="pipeSvg"></svg>
+    </div>
+    <div class="cards" style="margin-top:14px">
+      <div class="panel" style="padding:14px 18px"><b>Grok Bot</b> (upstream, not in this repo) runs each morning. It reads <code>sources.md</code> (its list of sources and query templates) from the Drive folder and writes <code>briefing-YYYY-MM-DD.md</code>. It can re-run during the day, which is why ingest runs hourly as well as at 08:00 ET.</div>
+      <div class="panel" style="padding:14px 18px"><b>The contract is a markdown format.</b> Title heading, a coverage line, intro, an outage summary, then <code>##</code> sections of numbered items, each with a bold headline and trailing citation links. <code>ingest/briefing-md.js</code> enforces it strictly. If a file doesn't match, it's rejected rather than loaded with guesses.</div>
+      <div class="panel" style="padding:14px 18px"><b>Pages</b>: <code>/</code> (latest briefing) · <code>/briefing/[date]</code> · <code>/archive</code> (paginated) · <code>/search</code> (FTS5) · <code>/sources</code> (rendered from sources.md) · <code>/notes</code> (long-form explainers, e.g. reading AI benchmarks).</div>
+      <div class="panel" style="padding:14px 18px"><b>API</b>: read-only JSON under <code>/api/v1</code> (briefings list, latest, by date, search, sources). Every field is <em>plain text</em>, never markdown or HTML, and links are <code>{label, url}</code> data, so API consumers can't be handed injected markup either.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= TL;DR ================= -->
+<section id="tldr">
+  <div class="wrap">
+    <h2><span class="num"></span>The runtime shape in 30 seconds</h2>
+    <div class="cards" style="margin-top:16px">
+      <div class="panel" style="padding:16px 18px">
+        <strong>app</strong> (SvelteKit on adapter-node) serves the site on port 3000 inside Docker. It opens <code>/data/briefing.db</code>
+        <em>read-only</em> on every request. It's on an internal-only network, so it can't open connections out to anything.
+      </div>
+      <div class="panel" style="padding:16px 18px">
+        <strong>cloudflared</strong> (container) holds an <em>outbound</em> tunnel to Cloudflare. Cloudflare sends requests for
+        <code>eh-ai-blast.app</code> down that tunnel, and cloudflared forwards them to <code>http://app:3000</code>. The host publishes no ports.
+      </div>
+      <div class="panel" style="padding:16px 18px">
+        <strong>ingest</strong> is a run-once container. A host systemd timer starts it every hour (and at 08:00 ET). It pulls
+        markdown from Google Drive, builds a new copy of the DB, checks it, and swaps it in atomically.
+      </div>
+      <div class="panel" style="padding:16px 18px">
+        <strong>Deploys</strong>: on a merge to main, CI builds both images and pushes them to GHCR tagged with the short SHA. CI then SSHes
+        in through a <em>second</em> tunnel on the host (behind Cloudflare Access) and runs <code>deploy/deploy.sh</code>, which pulls the images, runs ingest, then runs <code>compose up --wait</code>.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= MAP ================= -->
+<section id="map">
+  <div class="wrap">
+    <h2><span class="num"></span>The map</h2>
+    <p class="lede">Click any box to see what it is, how it's configured, and which file defines it. Use the buttons to animate a request,
+      an ingest run, or a deploy step by step. Moving dashes show which way each connection is <em>opened</em>.</p>
+
+    <div class="panel flowbar">
+      <div class="row">
+        <span class="label">Play a flow</span>
+        <button data-flow="request">🌐 A reader loads a page</button>
+        <button data-flow="ingest">⏰ Hourly ingest</button>
+        <button data-flow="deploy">🚀 Merge → deploy</button>
+        <button data-flow="human">🧑‍💻 You SSH in</button>
+        <button data-flow="breach">💥 App gets compromised</button>
+        <button id="flowReset">Reset</button>
+      </div>
+      <div class="narr" id="narr">
+        <div class="step-no" id="narrNo"></div>
+        <div class="text" id="narrText"></div>
+        <div class="row">
+          <button id="narrPrev">← Back</button>
+          <button id="narrNext">Next →</button>
+          <button id="narrAuto">▶ Auto-play</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="map-grid">
+      <div class="panel map">
+        <svg id="mapSvg" viewBox="0 0 1000 660" role="img" aria-label="Architecture map"></svg>
+        <div class="legend">
+          <span><i style="border-color:var(--web);background:var(--web-soft)"></i>network <b>web</b> (internal)</span>
+          <span><i style="border-color:var(--egress);background:var(--egress-soft)"></i>network <b>egress</b></span>
+          <span><i style="border-color:var(--host);background:var(--host-soft)"></i>droplet host (systemd, files)</span>
+          <span><i style="border-color:var(--cf);background:var(--cf-soft)"></i>Cloudflare edge</span>
+        </div>
+      </div>
+      <div class="panel detail" id="detail"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= DATA ================= -->
+<section id="data">
+  <div class="wrap">
+    <h2><span class="num"></span>The data layer: from markdown to SQLite</h2>
+    <p class="lede">The database is the boundary between the two halves of the system. Ingest is its only writer, and the app only reads it. Here is how its contents are shaped and why.</p>
+
+    <div class="tabs" id="dataTabs">
+      <button class="on" data-dt="schema">Schema</button>
+      <button data-dt="ingest">Ingest pipeline</button>
+      <button data-dt="md">Markdown, never HTML</button>
+      <button data-dt="mig">Migrations</button>
+      <button data-dt="search">Search</button>
+    </div>
+    <div class="panel" style="padding:18px 22px" id="dataPanel"></div>
+  </div>
+</section>
+
+<!-- ================= APP ================= -->
+<section id="app">
+  <div class="wrap">
+    <h2><span class="num"></span>The app layer</h2>
+    <p class="lede">SvelteKit with <code>adapter-node</code>: server-rendered pages plus API routes, built into a standalone Node server (<code>build/</code>). The whole server side is read-only, and it has no logins, sessions or user writes.</p>
+    <div class="cards">
+      <details class="panel card" open><summary>Reading the DB: one connection per request</summary>
+        <p><code>src/lib/server/db.ts</code> wraps every query batch in <code>withDb()</code>, which opens SQLite <code>readonly</code> with <code>fileMustExist</code>, runs Drizzle queries, and closes it. Opening a small SQLite file costs microseconds, and it's what makes the atomic swap work: a long-lived handle would keep reading the old inode after a rename.</p>
+        <p>Drizzle is used as a typed query builder only (drizzle-kit was removed). The schema source of truth is the SQL migrations, and a test checks <code>schema.ts</code> against them.</p></details>
+      <details class="panel card" open><summary>Routes and loaders</summary>
+        <p>Each page has a <code>+page.server.ts</code> loader that calls a function in <code>db.ts</code> (<code>getBriefing</code>, <code>listBriefings</code>, <code>search</code>…). Offset pagination (<code>src/lib/pagination.ts</code>) for the archive. <code>/api/v1/[...rest]</code> catches unknown API paths and returns a JSON 404 instead of an HTML page.</p></details>
+      <details class="panel card"><summary>Caching</summary>
+        <p>API responses: a day older than the latest briefing can't change any more, so it's cached for a day. Everything else is cached for 5 minutes, matching the hourly ingest. Cloudflare sits in front and compresses responses.</p></details>
+      <details class="panel card"><summary>Security headers + CSP</summary>
+        <p><code>hooks.server.ts</code> sets HSTS, nosniff, referrer-policy, permissions-policy (camera/mic/geo/payment/usb off), COOP. <code>vite.config.ts</code> sets a <b>nonce-based CSP</b>: <code>default-src 'self'</code>, no third-party scripts, <code>connect-src 'self'</code> (an injected script couldn't send data anywhere), <code>frame-ancestors 'none'</code>. Static assets skip the hook, so Cloudflare adds nosniff to those responses at the edge.</p></details>
+      <details class="panel card"><summary>Bounding the cost of public input</summary>
+        <p>Search is the only route whose cost depends on what the user types. <code>search-query.ts</code> caps it at 200 characters / 8 words (400 otherwise), shared by <code>/search</code> and <code>/api/v1/search</code>. Cloudflare's single Free-plan rate-limit rule covers the same paths: 20 requests / 10 s per IP.</p></details>
+      <details class="panel card"><summary>Version in the footer</summary>
+        <p>Every build stamps its commit (<code>gitVersion()</code> in vite.config.ts, or <code>APP_VERSION</code> in Docker builds, which have no .git). You can confirm a deploy just by looking at the footer. <code>-dirty</code> marks a laptop build with uncommitted changes.</p></details>
+      <details class="panel card"><summary>Testing</summary>
+        <p><code>npm test</code> = <code>node:test</code> for ingest (parser, DB writes, every migration on an empty DB + <code>verify()</code>, schema.ts vs real tables), then Vitest for the app (lib, db.ts, route loaders, API handlers) against a <b>fixture database built from the migrations</b>, never the real one. <code>npm run check</code> type-checks the TS <em>and</em> the plain-JS ingest via <code>checkJs</code> + JSDoc.</p></details>
+      <details class="panel card"><summary>Local dev</summary>
+        <p><code>npm run dev</code> reads <code>data/briefing.db</code>. If it's missing, <code>predev</code> pulls a copy from the droplet's volume over SSH and runs a <code>quick_check</code> on it. Dev doesn't use Docker. Step 5 of the containerize plan (dev via compose) was skipped as not worth it yet.</p></details>
+    </div>
+  </div>
+</section>
+
+<!-- ================= IMAGES ================= -->
+<section id="images">
+  <div class="wrap">
+    <h2><span class="num"></span>The two images</h2>
+    <p class="lede">Both start from <code>node:26-alpine</code> and are built from the repo root. The app image uses a three-stage build, so the final
+      image has no Vite, Svelte, TypeScript or source code, just <code>build/</code> and the production <code>node_modules</code>. Ingest is a single
+      stage because it runs plain JS straight from source.</p>
+
+    <div class="panel" style="padding:16px 18px; margin-bottom:16px">
+      <div class="row" style="margin-bottom:12px">
+        <strong style="margin-right:6px">App image stages:</strong>
+        <span class="m" style="font-size:14px">Hover a stage to see what it passes on to the next one.</span>
+      </div>
+      <div class="stages">
+        <div class="panel stage" data-stage="build">
+          <h4>① build</h4>
+          <div class="from">FROM node:26-alpine AS build</div>
+          <ul>
+            <li><code>npm ci</code> with <em>all</em> deps (dev included)</li>
+            <li>copies the trimmed context (see "Build context")</li>
+            <li><code>npm run build</code> with <code>APP_VERSION</code> → <code>/app/build</code></li>
+          </ul>
+          <div style="margin-top:10px"><span class="chip keep">build/</span><span class="chip drop">node_modules (dev)</span><span class="chip drop">src/</span></div>
+        </div>
+        <div class="panel stage" data-stage="deps">
+          <h4>② deps</h4>
+          <div class="from">FROM node:26-alpine AS deps</div>
+          <ul>
+            <li>only <code>package.json</code> + lockfile</li>
+            <li><code>npm ci --omit=dev</code>: better-sqlite3, drizzle-orm, fonts</li>
+            <li>better-sqlite3 ships a prebuilt musl binary, so no compiler toolchain is needed</li>
+          </ul>
+          <div style="margin-top:10px"><span class="chip keep">node_modules (prod)</span></div>
+        </div>
+        <div class="panel stage final" data-stage="final">
+          <h4>③ runtime (shipped)</h4>
+          <div class="from">FROM node:26-alpine</div>
+          <ul>
+            <li><code>COPY --from=deps</code> node_modules</li>
+            <li><code>COPY --from=build</code> build/</li>
+            <li><code>mkdir /data</code> owned by node · <code>USER node</code></li>
+            <li><code>CMD ["node", "build"]</code> on :3000</li>
+          </ul>
+        </div>
+      </div>
+      <p class="m" style="font-size:14px;margin:12px 0 0">Why a separate <b>deps</b> stage instead of pruning in <b>build</b>? It's a fresh <code>npm ci --omit=dev</code>,
+        so no dev packages can leak through, and Docker caches it independently. It only rebuilds when the lockfile changes, not when you edit a Svelte file.</p>
+    </div>
+
+    <div class="tabs" id="imgTabs">
+      <button class="on" data-walk="dockerfile-app">Dockerfile (app)</button>
+      <button data-walk="dockerfile-ingest">ingest/Dockerfile</button>
+    </div>
+    <div class="panel walker" id="imgWalker"></div>
+  </div>
+</section>
+
+<!-- ================= CONTEXT ================= -->
+<section id="context">
+  <div class="wrap">
+    <h2><span class="num"></span>Build context: what each image can see</h2>
+    <p class="lede">Both builds use the repo root as their context. The repo root also holds <code>data/briefing.db</code>, <code>.env</code> and
+      Terraform state, none of which belongs in an image. Each image has an allow-list ignore file that starts with <code>*</code> (ignore everything) and
+      opts specific paths back in. <code>ingest/Dockerfile.dockerignore</code> is picked up automatically because it sits next to that Dockerfile
+      (BuildKit looks for <code>&lt;Dockerfile&gt;.dockerignore</code>).</p>
+    <div class="row">
+      <button class="on" data-ctx="app">App image (.dockerignore)</button>
+      <button data-ctx="ingest">Ingest image (ingest/Dockerfile.dockerignore)</button>
+    </div>
+    <div class="ctx" id="ctxGrid"></div>
+  </div>
+</section>
+
+<!-- ================= COMPOSE ================= -->
+<section id="compose">
+  <div class="wrap">
+    <h2><span class="num"></span>compose.yaml, line by line</h2>
+    <p class="lede">This is the file <code>deploy.sh</code> copies to <code>/opt/ai-briefing/compose/</code> on the droplet. Next to it sits a <code>.env</code> with
+      <code>TAG=&lt;sha7&gt;</code> and <code>DRIVE_KEY_GID=983</code>. Click any highlighted line to see what it does.</p>
+    <div class="panel walker" id="composeWalker"></div>
+  </div>
+</section>
+
+<!-- ================= HARDENING ================= -->
+<section id="hardening">
+  <div class="wrap">
+    <h2><span class="num"></span>Hardening matrix</h2>
+    <p class="lede">What each container is allowed to do. The <code>x-locked-down</code> YAML anchor applies the first three rows to every service. Click a row for the reasoning behind it.</p>
+    <div class="panel">
+      <div class="mx-wrap">
+        <table class="matrix" id="matrix">
+          <thead><tr><th>Control</th><th>app</th><th>cloudflared</th><th>ingest</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="mx-note" id="mxNote"><span class="m">Click a row.</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SWAP ================= -->
+<section id="swap">
+  <div class="wrap">
+    <h2><span class="num"></span>How ingest updates the DB without the app noticing</h2>
+    <p class="lede">The app and ingest share one named volume, <code>ai-news-app_data</code>, mounted at <code>/data</code>, read-only for the app and read-write for ingest.
+      Ingest never writes to the live file. It works on a copy and swaps it in with <code>rename()</code>, which is atomic on a single filesystem.
+      Code: <code>commit()</code> in <code>ingest/pull.js</code> and <code>migrate</code>/<code>verify</code> in <code>ingest/apply.js</code>.</p>
+    <div class="swap">
+      <div class="panel" style="padding:12px">
+        <svg id="swapSvg" viewBox="0 0 520 330"></svg>
+      </div>
+      <div class="panel" style="padding:18px 20px">
+        <div class="step-no" id="swapNo" style="font:600 12px var(--mono);color:var(--accent)"></div>
+        <h3 id="swapTitle" style="margin:4px 0 8px"></h3>
+        <div id="swapText"></div>
+        <div class="row" style="margin-top:14px">
+          <button id="swapPrev">← Back</button>
+          <button id="swapNext">Next →</button>
+        </div>
+      </div>
+    </div>
+    <div class="callout">The app half of this trick is in <code>src/lib/server/db.ts</code>: <code>withDb()</code> opens a <em>new</em> read-only connection for each query batch and closes it afterwards.
+      A long-lived connection would keep reading the old inode forever after a rename. Opening a new one each time means the next request after a swap sees the new file.</div>
+  </div>
+</section>
+
+<!-- ================= DEPLOY ================= -->
+<section id="deploy">
+  <div class="wrap">
+    <h2><span class="num"></span>Deploy, in order</h2>
+    <p class="lede">From <code>.github/workflows/deploy.yml</code> and <code>deploy/deploy.sh</code>. The order matters. Red items are gates: if one fails, the steps after it don't run.</p>
+    <div class="panel" style="padding:4px 20px">
+      <div class="tl" id="timeline"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= INFRA ================= -->
+<section id="infra">
+  <div class="wrap">
+    <h2><span class="num"></span>Infrastructure as code, and the network model</h2>
+    <p class="lede"><code>infra/</code> is Terraform for two providers: DigitalOcean (the droplet and its firewall) and Cloudflare (DNS, both tunnels, Access, edge rules, bot settings).
+      What happens <em>inside</em> the box is handled by <code>deploy/provision.sh</code> (run once) and <code>deploy/deploy.sh</code> (every deploy). Terraform owns the resources around the droplet, not its contents.</p>
+    <div class="panel mx-wrap" style="padding:8px 14px">
+      <table class="matrix">
+        <thead><tr><th>Who</th><th>How they reach the droplet</th><th>What stops anyone else</th></tr></thead>
+        <tbody>
+          <tr><td>Readers</td><td>Cloudflare → <b>ai-briefing-web</b> tunnel → cloudflared container → <code>app:3000</code></td><td>No published ports; DO firewall has zero inbound rules; tunnel only routes the apex hostname to the app</td></tr>
+          <tr><td>CI</td><td><code>ssh.eh-ai-blast.app</code> → Cloudflare Access → <b>ai-briefing</b> tunnel (host cloudflared) → sshd on 127.0.0.1</td><td>Access service token, <em>then</em> an SSH key restricted to <code>from="127.0.0.1,::1"</code> with no forwarding, plus a pinned host key</td></tr>
+          <tr><td>Evan</td><td>Tailscale → sshd (MagicDNS <code>ai-briefing-do</code>)</td><td>ufw allows 22 only on <code>tailscale0</code>; keys only, no root; the tailnet tag gives the droplet no access <em>to</em> other devices</td></tr>
+          <tr><td>Fallback</td><td>DigitalOcean web console</td><td>DO account auth</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="cards" style="margin-top:14px">
+      <details class="panel card"><summary>Why tunnels instead of opening 80/443?</summary><p>With no listening public ports there's nothing to scan or attack directly, the origin IP stays hidden, and TLS certificates are handled by Cloudflare. The only cost is that Cloudflare sits in the request path, which this site uses anyway for DNS, caching and rate limiting.</p></details>
+      <details class="panel card"><summary>Why two tunnels?</summary><p>The cloudflared container can only reach Docker networks, not the host's loopback sshd. Keeping SSH on a separate host-level tunnel also means the public web connector can never be turned into a path to a shell.</p></details>
+      <details class="panel card"><summary>What lives in Terraform state?</summary><p>Tunnel tokens and the Access client secret, marked <code>sensitive</code> and read with <code>terraform output -raw</code>. The state file stays local in <code>infra/</code> and is excluded from both Docker build contexts. <code>lifecycle.ignore_changes = [image, ssh_keys]</code> on the droplet keeps an image update from forcing a replacement.</p></details>
+      <details class="panel card"><summary>Supply chain in CI</summary><p>Actions pinned to commit SHAs (Dependabot bumps them). cloudflared downloaded at a fixed version and checked with sha256. <code>persist-credentials: false</code> on checkout. Deploy secrets live in a GitHub <b>environment</b> (<code>production</code>) so only the main-branch deploy job sees them, and that job runs no npm code.</p></details>
+    </div>
+  </div>
+</section>
+
+<!-- ================= HISTORY ================= -->
+<section id="history">
+  <div class="wrap">
+    <h2><span class="num"></span>How it got here</h2>
+    <p class="lede">The architecture changed one PR at a time. Being able to tell this story ("we started simple, then each change fixed a specific problem") is often more convincing in an interview than the final diagram. Click an era.</p>
+    <div class="row" id="eraBtns" style="margin-bottom:12px"></div>
+    <div class="panel" style="padding:18px 22px" id="eraPanel"></div>
+  </div>
+</section>
+
+<!-- ================= DECISIONS ================= -->
+<section id="decisions">
+  <div class="wrap">
+    <h2><span class="num"></span>Decision log</h2>
+    <p class="lede">Each decision with the alternatives considered and what it cost. This is the material for "why did you do it that way?" questions. Filter by area.</p>
+    <div class="row" id="decFilters" style="margin-bottom:12px"></div>
+    <div class="cards" id="decCards"></div>
+  </div>
+</section>
+
+<!-- ================= GAPS ================= -->
+<section id="gaps">
+  <div class="wrap">
+    <h2><span class="num"></span>Known trade-offs and what's next</h2>
+    <p class="lede">Being upfront about the weak spots is a strength in an interview. For each one: what it is, why it's acceptable for now, and the fix.</p>
+    <div class="panel mx-wrap" style="padding:8px 14px">
+      <table class="matrix">
+        <thead><tr><th>Gap</th><th>Why it's OK for now</th><th>Plan</th></tr></thead>
+        <tbody>
+          <tr><td>No off-box DB backup</td><td>It's the <b>only full copy</b>: Drive holds fewer briefings than the DB, so re-ingesting can't rebuild it. <code>.prev</code> protects against a bad ingest, not against losing the disk.</td><td>Approved: daily locked-down container reads the volume <code>:ro</code> and uploads <code>briefing-YYYY-MM-DD.db</code> to Cloudflare R2 (bucket lock 30 d, delete after 1 y), all in Terraform. Old host dirs aren't deleted until it exists.</td></tr>
+          <tr><td>Single droplet, single point of failure</td><td>A personal news site; an hour of downtime costs nothing. Rebuild path is scripted (Terraform + provision.sh + deploy).</td><td>Backups first; HA isn't worth its complexity at this scale.</td></tr>
+          <tr><td>Brief downtime on app deploy</td><td><code>compose up</code> stops the old container before the new one is healthy, so there are a few seconds of 502s.</td><td>Blue/green behind the tunnel if it ever matters.</td></tr>
+          <tr><td>A failed deploy leaves the site down</td><td><code>--wait</code> fails the job loudly; rollback is <code>TAG=&lt;sha&gt; npm run deploy</code>.</td><td>Auto-rollback to the previous TAG on health failure.</td></tr>
+          <tr><td>Old app + new schema window</td><td>Ingest migrates before the app restarts, so old code briefly runs on the new schema.</td><td>Rule: migrations must be additive/backward-compatible (add columns before dropping).</td></tr>
+          <tr><td>One rate-limit rule (Free plan)</td><td>Spent on search, the only expensive route; app-side caps back it up.</td><td>Upgrade plan or app-side limiter if comments are added.</td></tr>
+          <tr><td>Post-cutover cleanup</td><td>Host Node, the <code>briefing</code> user and <code>/opt/ai-briefing/{app,data}</code> are leftovers from systemd days. They're harmless.</td><td>Remove after the R2 backup lands.</td></tr>
+          <tr><td>Comments (designed, not built)</td><td>—</td><td>Anonymous any-name comments with admin-only provenance (CF-Connecting-IP, HMAC'd IP, Turnstile), per-IP and site-wide throttles. It would be the first write path, which means a second writer to the DB to think about.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ================= WHAT IF ================= -->
+<section id="whatif">
+  <div class="wrap">
+    <h2><span class="num"></span>What if…</h2>
+    <p class="lede">Try to predict the answer before you open each card.</p>
+    <div class="cards" id="whatifCards"></div>
+  </div>
+</section>
+
+<!-- ================= INTERVIEW ================= -->
+<section id="interview">
+  <div class="wrap">
+    <h2><span class="num"></span>Interview practice</h2>
+    <p class="lede">Questions you're likely to get, with the points a strong answer should hit. Answer out loud first, then reveal.</p>
+    <div class="row" style="margin-bottom:12px"><button id="qShuffle">🔀 Shuffle</button><button id="qRevealAll">Reveal all</button><span class="m" id="qCount" style="font-size:14px"></span></div>
+    <div class="cards" id="qCards"></div>
+  </div>
+</section>
+
+<!-- ================= CMDS ================= -->
+<section id="cmds">
+  <div class="wrap">
+    <h2><span class="num"></span>Commands worth knowing</h2>
+    <p class="lede">The droplet ones run in <code>/opt/ai-briefing/compose</code> with sudo, which is how <code>deploy.sh</code> runs them.</p>
+    <div class="cmds" id="cmdGrid"></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">Generated 2026-11-05 from <code>Dockerfile</code>, <code>ingest/Dockerfile</code>, <code>compose.yaml</code>, both dockerignores,
+    <code>deploy/*</code>, <code>.github/workflows/deploy.yml</code> and <code>infra/*.tf</code> as of main at c0d9672. If those files change, this page won't update with them.</div>
+</footer>
+
+<!-- ============ Source files (raw text) ============ -->
+<script type="text/plain" id="src-dockerfile-app"># The app: SvelteKit (adapter-node), reading briefing.db read-only. Build from the repo root:
+#   docker build --build-arg APP_VERSION=$(git rev-parse --short=7 HEAD) -t ai-news-app-app .
+# ingest/Dockerfile is the other image; both share the data volume.
+FROM node:26-alpine AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --ignore-scripts
+COPY . .
+# Shown in the site footer (vite.config.ts); there's no .git here to read it from.
+ARG APP_VERSION=unknown
+RUN APP_VERSION=$APP_VERSION npm run build
+
+# Runtime packages only, without the build tools. better-sqlite3 ships prebuilt binaries (musl included).
+FROM node:26-alpine AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts
+
+FROM node:26-alpine
+LABEL org.opencontainers.image.source=https://github.com/evanh1393/ai-news-app
+WORKDIR /app
+COPY package.json ./
+COPY --from=deps /app/node_modules node_modules/
+COPY --from=build /app/build build/
+# Matches ingest/Dockerfile: whichever image creates the volume first, it ends up owned by node.
+RUN mkdir /data && chown node:node /data
+
+# 0.0.0.0 inside the container; compose decides who can reach it.
+ENV NODE_ENV=production \
+    HOST=0.0.0.0 \
+    PORT=3000 \
+    BRIEFING_DB=/data/briefing.db \
+    NODE_OPTIONS=--disable-warning=ExperimentalWarning
+USER node
+EXPOSE 3000
+CMD ["node", "build"]</script>
+
+<script type="text/plain" id="src-dockerfile-ingest"># Ingest: pulls the briefings from Drive into briefing.db (ingest/pull.js). Build from the repo root:
+#   docker build -f ingest/Dockerfile -t ai-news-app-ingest .
+# The Drive key is mounted at run time, never built in. Extra args go to pull.js, e.g. `--check`.
+FROM node:26-alpine
+LABEL org.opencontainers.image.source=https://github.com/evanh1393/ai-news-app
+
+WORKDIR /app
+# Runtime packages only. better-sqlite3 ships prebuilt binaries (musl included), so skip node-gyp.
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
+COPY shared/ shared/
+COPY ingest/ ingest/
+# A new volume takes this ownership, so ingest (node) can write it.
+RUN mkdir /data && chown node:node /data
+
+ENV BRIEFING_DB=/data/briefing.db \
+    DRIVE_KEY=/run/secrets/drive-key.json
+USER node
+ENTRYPOINT ["node", "ingest/pull.js"]</script>
+
+<script type="text/plain" id="src-compose">name: ai-news-app
+
+x-locked-down: &locked-down
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+
+services:
+  app:
+    <<: *locked-down
+    build:
+      context: .
+      args:
+        APP_VERSION: ${APP_VERSION:-unknown}
+    image: ghcr.io/evanh1393/ai-news-app-app:${TAG:-latest}
+    restart: unless-stopped
+    tmpfs: [/tmp]
+    volumes:
+      - data:/data:ro
+    networks: [web]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+
+  cloudflared:
+    <<: *locked-down
+    image: cloudflare/cloudflared:2026.9.3
+    command: tunnel --no-autoupdate run --token-file /run/secrets/tunnel_token
+    restart: unless-stopped
+    secrets: [tunnel_token]
+    networks: [web, egress]
+    depends_on:
+      app:
+        condition: service_healthy
+
+  ingest:
+    <<: *locked-down
+    build:
+      context: .
+      dockerfile: ingest/Dockerfile
+    image: ghcr.io/evanh1393/ai-news-app-ingest:${TAG:-latest}
+    profiles: [ingest]
+    tmpfs: [/tmp]
+    secrets:
+      - source: drive_key
+        target: drive-key.json
+    group_add: ["${DRIVE_KEY_GID:-1000}"]
+    volumes:
+      - data:/data
+    networks: [egress]
+
+secrets:
+  tunnel_token:
+    file: ${SECRETS_DIR:-/etc/ai-briefing}/tunnel-token
+  drive_key:
+    file: ${SECRETS_DIR:-/etc/ai-briefing}/drive-key.json
+
+volumes:
+  data:
+
+networks:
+  web:
+    internal: true
+  egress:</script>
+
+<script>
+/* ---------------- theme ---------------- */
+(() => {
+  const root = document.documentElement;
+  try { const t = localStorage.getItem('theme'); if (t) root.dataset.theme = t; } catch {}
+  document.getElementById('themeBtn').onclick = () => {
+    const dark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    root.dataset.theme = dark ? 'light' : 'dark';
+    try { localStorage.setItem('theme', root.dataset.theme); } catch {}
+  };
+})();
+
+const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const NS = 'http://www.w3.org/2000/svg';
+const el = (tag, attrs = {}, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+
+/* ================= MAP ================= */
+const NODES = {
+  reader: { x: 110, y: 58, w: 170, h: 52, t1: 'A reader', t2: 'browser, anywhere' },
+  drive: { x: 470, y: 58, w: 170, h: 52, t1: 'Google Drive', t2: '"AI Briefings" folder' },
+  gha: { x: 715, y: 58, w: 150, h: 52, t1: 'GitHub Actions', t2: 'ci workflow' },
+  ghcr: { x: 897, y: 58, w: 150, h: 52, t1: 'GHCR', t2: 'ghcr.io/evanh1393' },
+  cfweb: { x: 210, y: 158, w: 290, h: 46, t1: 'Cloudflare · eh-ai-blast.app', t2: 'proxied DNS → ai-briefing-web' },
+  cfssh: { x: 790, y: 158, w: 290, h: 46, t1: 'Cloudflare Access · ssh.…', t2: 'service token → ai-briefing' },
+  app: { x: 160, y: 355, w: 160, h: 64, t1: 'app', t2: 'node build · :3000' },
+  cloudflared: { x: 350, y: 355, w: 140, h: 64, t1: 'cloudflared', t2: 'web tunnel' },
+  ingest: { x: 565, y: 355, w: 150, h: 64, t1: 'ingest', t2: 'run --rm · pull.js' },
+  volume: { x: 300, y: 545, w: 210, h: 62, t1: 'volume: data', t2: '/data/briefing.db', cyl: true },
+  dockerd: { x: 565, y: 545, w: 150, h: 54, t1: 'dockerd', t2: 'docker compose' },
+  timer: { x: 845, y: 290, w: 220, h: 48, t1: 'briefing-pull.timer', t2: 'systemd → .service' },
+  secrets: { x: 845, y: 375, w: 220, h: 48, t1: '/etc/ai-briefing', t2: 'tunnel-token · drive-key' },
+  hostcfd: { x: 845, y: 460, w: 220, h: 48, t1: 'cloudflared (host)', t2: 'ai-briefing tunnel' },
+  sshd: { x: 845, y: 545, w: 220, h: 48, t1: 'sshd', t2: '127.0.0.1:22 · tailscale0' },
+};
+// from → to = direction the connection is OPENED (or data is pushed)
+const EDGES = {
+  'reader-cfweb': { from: 'reader', to: 'cfweb', label: 'HTTPS' },
+  'cloudflared-cfweb': { from: 'cloudflared', to: 'cfweb', label: 'outbound tunnel', bend: -30 },
+  'cloudflared-app': { from: 'cloudflared', to: 'app', label: 'http://app:3000' },
+  'app-volume': { from: 'app', to: 'volume', label: 'ro' },
+  'ingest-volume': { from: 'ingest', to: 'volume', label: 'rw', bend: 30 },
+  'ingest-drive': { from: 'ingest', to: 'drive', label: 'Drive API (readonly)', bend: 20 },
+  'timer-dockerd': { from: 'timer', to: 'dockerd', bend: 60 },
+  'dockerd-ingest': { from: 'dockerd', to: 'ingest', label: 'starts' },
+  'dockerd-app': { from: 'dockerd', to: 'app', bend: 70 },
+  'secrets-ingest': { from: 'secrets', to: 'ingest', label: 'drive-key.json' },
+  'secrets-cloudflared': { from: 'secrets', to: 'cloudflared', label: 'tunnel_token', bend: 70 },
+  'gha-ghcr': { from: 'gha', to: 'ghcr', label: 'push' },
+  'gha-cfssh': { from: 'gha', to: 'cfssh', label: 'cloudflared access ssh' },
+  'hostcfd-cfssh': { from: 'hostcfd', to: 'cfssh', label: 'outbound tunnel', bend: -40 },
+  'hostcfd-sshd': { from: 'hostcfd', to: 'sshd' },
+  'sshd-dockerd': { from: 'sshd', to: 'dockerd', label: 'deploy.sh' },
+  'dockerd-ghcr': { from: 'dockerd', to: 'ghcr', label: 'pull', bend: -60 },
+  'cloudflared-hostcfd': { from: 'cloudflared', to: 'hostcfd', hidden: true },
+  'app-internet': { from: 'app', to: 'drive', hidden: true },
+};
+
+const DETAILS = {
+  _intro: `<h3>Pick something</h3><div class="kind">click a box on the map</div>
+    <p>The <b style="color:var(--host)">purple</b> region is the droplet <code>ai-briefing-do</code> (DigitalOcean, Debian 13, 1 vCPU / 1 GB, tor1).
+    Inside it, the <b>Docker Engine</b> runs the compose project <code>ai-news-app</code>. Its two networks are drawn as the overlapping
+    <b style="color:var(--web)">blue</b> and <b style="color:var(--egress)">green</b> zones. Only <b>cloudflared</b> sits in both.</p>
+    <p>The droplet’s DigitalOcean firewall has <b>no inbound rules at all</b> (<code>infra/main.tf</code>). Everything that reaches the server
+    comes through a connection the server opened itself: two Cloudflare tunnels and Tailscale.</p>`,
+  reader: `<h3>A reader</h3><div class="kind">external · the public</div>
+    <p>Resolves <code>eh-ai-blast.app</code>. The apex record is a <b>proxied CNAME</b> to <code>&lt;web-tunnel-id&gt;.cfargotunnel.com</code>, so the reader only ever talks to Cloudflare and never sees the droplet’s IP.</p>
+    <div class="files">infra/cloudflare.tf → cloudflare_dns_record.apex</div>`,
+  cfweb: `<h3>Cloudflare edge: eh-ai-blast.app</h3><div class="kind">edge · managed by Terraform</div>
+    <ul>
+      <li>TLS terminates here.</li>
+      <li><b>Rate limit</b> (the one rule the Free plan allows): 20 req / 10 s per IP + colo on <code>/search</code>, <code>/search/__data.json</code> and <code>/api/v1/search</code>, the only routes whose cost depends on the input.</li>
+      <li><b>Response header rule</b>: <code>X-Content-Type-Options: nosniff</code> on everything. adapter-node serves static assets before <code>hooks.server.ts</code> runs, so the app can’t add the header to those responses itself.</li>
+      <li>Bot management disabled on purpose: AI crawlers are welcome.</li>
+      <li>Routes to the <b>ai-briefing-web</b> tunnel. Its ingress config: <code>eh-ai-blast.app → http://app:3000</code>, everything else 404.</li>
+    </ul>
+    <div class="files">infra/cloudflare.tf → ai_briefing_web, rate_limit, response_headers</div>`,
+  cloudflared: `<h3>cloudflared (container)</h3><div class="kind">compose service · image cloudflare/cloudflared:2026.9.3</div>
+    <p>Runs <code>tunnel --no-autoupdate run --token-file /run/secrets/tunnel_token</code>. On start it dials <b>out</b> to Cloudflare and keeps that connection open. Requests for the site come back down it.</p>
+    <ul>
+      <li>On <b>both</b> networks: <code>egress</code> to reach Cloudflare, and <code>web</code> to reach <code>app</code>.</li>
+      <li>"<code>app</code>" in <code>http://app:3000</code> is resolved by Docker’s embedded DNS, which gives every service its service name as a hostname on each network it joins.</li>
+      <li><code>depends_on: app: condition: service_healthy</code>: it doesn’t start until the app’s healthcheck passes, so the tunnel never serves 502s during startup.</li>
+      <li><code>--no-autoupdate</code>: the version is pinned in compose and updated by changing the tag, not by the binary updating itself.</li>
+      <li>The routing (which hostname → which service) is stored in Cloudflare (<code>config_src = "cloudflare"</code>), not in a file in this container.</li>
+    </ul>
+    <pre>networks: [web, egress]
+secrets: [tunnel_token]</pre>
+    <div class="files">compose.yaml · infra/cloudflare.tf</div>`,
+  app: `<h3>app</h3><div class="kind">compose service · ghcr.io/evanh1393/ai-news-app-app:&lt;sha7&gt;</div>
+    <p>SvelteKit built with adapter-node; <code>node build</code> listens on <code>0.0.0.0:3000</code> <em>inside the container</em>. No <code>ports:</code> mapping, so nothing on the host or the internet can reach it directly.</p>
+    <ul>
+      <li>Only on <code>web</code>, which is <code>internal: true</code>: Docker gives that network no route out. The app can’t call any external service, so a compromise can’t exfiltrate data or download a payload. This replaced the old systemd <code>IPAddressDeny</code>.</li>
+      <li>Mounts the volume <code>data:/data:ro</code>. Even with a bug, it can’t modify the DB.</li>
+      <li>Root fs read-only; <code>/tmp</code> is a tmpfs.</li>
+      <li>Healthcheck: <code>wget -q --spider http://127.0.0.1:3000/</code> every 30 s (busybox wget comes with alpine). It controls cloudflared’s start and <code>compose up --wait</code> during deploys.</li>
+      <li><code>restart: unless-stopped</code>: comes back after a crash or reboot.</li>
+      <li>Footer version comes from build arg <code>APP_VERSION</code>, since there’s no <code>.git</code> inside the image.</li>
+    </ul>
+    <div class="files">Dockerfile · compose.yaml · src/lib/server/db.ts</div>`,
+  volume: `<h3>Named volume <code>data</code></h3><div class="kind">docker volume · ai-news-app_data</div>
+    <p>Lives on the host at <code>/var/lib/docker/volumes/ai-news-app_data/_data/</code>, which only root can read. Compose prefixes the project name, so <code>data</code> becomes <code>ai-news-app_data</code>.</p>
+    <ul>
+      <li><b>app</b> mounts it <code>:ro</code>; <b>ingest</b> mounts it read-write.</li>
+      <li>Contains <code>briefing.db</code>, <code>briefing.db.prev</code> (the previous version, hard-linked) and briefly <code>.briefing.db.pull</code> (the working copy).</li>
+      <li>Ownership: when Docker creates an empty named volume, it copies the image’s content and ownership at the mount point into it. Both Dockerfiles <code>mkdir /data && chown node:node</code>, so whichever container mounts it first, the volume ends up writable by <code>node</code>.</li>
+      <li><code>docker compose down</code> leaves it alone; only <code>down -v</code> deletes it. <b>It’s the only complete copy of the archive</b> (Drive holds fewer briefings), so backing it up is the open to-do.</li>
+    </ul>
+    <div class="files">compose.yaml volumes · deploy/pull-db.sh reads it for local dev</div>`,
+  ingest: `<h3>ingest</h3><div class="kind">compose service · profile "ingest" · ghcr.io/…/ai-news-app-ingest:&lt;sha7&gt;</div>
+    <p><code>ENTRYPOINT ["node", "ingest/pull.js"]</code>. It runs once and exits. <code>profiles: [ingest]</code> means <code>docker compose up</code> skips it, and it only runs when asked: <code>docker compose run --rm ingest [args]</code>.</p>
+    <ul>
+      <li>On <code>egress</code> only: it can reach Google, but not the app.</li>
+      <li>Reads the service-account key from <code>/run/secrets/drive-key.json</code> (compose secret, mounted read-only).</li>
+      <li><code>group_add: ["983"]</code> on the droplet. The key file on the host is <code>root:briefing-pull 0640</code>, and compose (non-swarm) secrets are bind mounts that <b>keep host owner and mode</b>, so the <code>node</code> user needs that group to read it.</li>
+      <li>Exit codes: <b>0</b> ok / up to date · <b>1</b> some file rejected (the rest were still ingested) · <b>2</b> real error.</li>
+      <li>Other modes: <code>--check</code>, <code>--dry-run</code>, <code>--file X.md</code>, <code>--migrate</code>.</li>
+    </ul>
+    <div class="files">ingest/Dockerfile · ingest/pull.js · ingest/apply.js · compose.yaml</div>`,
+  drive: `<h3>Google Drive</h3><div class="kind">external · data source</div>
+    <p>Grok Bot writes <code>briefing-YYYY-MM-DD.md</code> and <code>sources.md</code> to the "AI Briefings" folder. Ingest signs a JWT with the service-account key, exchanges it for a one-hour <code>drive.readonly</code> token, lists the folder, and downloads only the files whose <code>md5Checksum</code> differs from the <code>drive_files</code> table.</p>
+    <p>The service account can only read that one folder. A leaked key can’t change anything in Drive.</p>
+    <div class="files">ingest/pull.js → accessToken(), download()</div>`,
+  dockerd: `<h3>dockerd + compose CLI</h3><div class="kind">host · Docker Engine</div>
+    <p>Docker Engine from Docker’s apt repo, installed by <code>deploy/provision.sh</code> (<code>docker-ce</code>, <code>containerd.io</code>, <code>docker-compose-plugin</code>). The compose project directory is <code>/opt/ai-briefing/compose</code>, holding <code>compose.yaml</code> and <code>.env</code>:</p>
+    <pre>TAG=70eedd9
+DRIVE_KEY_GID=983</pre>
+    <p>Compose reads <code>.env</code> automatically for <code>\${…}</code> substitution, so <code>image: …:\${TAG:-latest}</code> pins both images to the deployed commit.</p>
+    <div class="files">deploy/deploy.sh · deploy/provision.sh</div>`,
+  timer: `<h3>briefing-pull.timer → .service</h3><div class="kind">host · systemd</div>
+    <pre>OnCalendar=*-*-* 08:00:00 America/New_York
+OnCalendar=*-*-* *:10:00
+Persistent=true</pre>
+    <p>Fires at 8:00 ET and at :10 past every hour (catches re-runs). <code>Persistent=true</code>: if the droplet was off at a scheduled time, it runs on boot.</p>
+    <p>The service is <code>Type=oneshot</code>, <code>WorkingDirectory=/opt/ai-briefing/compose</code>, and runs <code>docker compose run --rm --no-TTY ingest</code> with a 5 min timeout.</p>
+    <p><b>Why a host timer instead of a cron container?</b> systemd already handles scheduling, catch-up after downtime and logging (<code>journalctl -u briefing-pull</code>), and a scheduler container would need access to the Docker socket.</p>
+    <div class="files">deploy/briefing-pull.timer · deploy/briefing-pull.service</div>`,
+  secrets: `<h3>/etc/ai-briefing</h3><div class="kind">host · secret files · dir root:briefing-pull 0750</div>
+    <ul>
+      <li><code>tunnel-token</code>: from <code>terraform output -raw web_tunnel_token</code>. Owned by uid <b>65532</b> mode 0400, because the cloudflared image runs as nonroot 65532 and the bind mount keeps host ownership.</li>
+      <li><code>drive-key.json</code>: Google service-account key, <code>root:briefing-pull 0640</code> (gid 983) → read via <code>group_add</code>.</li>
+    </ul>
+    <p>Compose <code>secrets:</code> (outside swarm) bind-mount these files read-only into <code>/run/secrets/&lt;name&gt;</code>. They never go into an image layer or an env var, so they don’t show up in <code>docker inspect</code> or in an image pushed to GHCR.</p>
+    <p><code>SECRETS_DIR</code> can override the path for local testing.</p>
+    <div class="files">compose.yaml secrets · deploy/provision.sh</div>`,
+  hostcfd: `<h3>cloudflared on the host</h3><div class="kind">host · systemd service · tunnel "ai-briefing"</div>
+    <p>A <b>separate</b> tunnel from the web one. Its only ingress rule: <code>ssh.eh-ai-blast.app → ssh://127.0.0.1:22</code>.</p>
+    <p><b>Why two tunnels?</b> The cloudflared container lives on Docker networks and can’t reach the host’s sshd on loopback, so CI’s SSH path stays on the host. Keeping them separate also means the web container can never be used as a route to SSH.</p>
+    <div class="files">infra/cloudflare.tf → ai_briefing</div>`,
+  sshd: `<h3>sshd</h3><div class="kind">host</div>
+    <ul>
+      <li>ufw: inbound 22 allowed <b>only on tailscale0</b>. This is how you SSH in. CI arrives through the host tunnel on <code>127.0.0.1</code>, which ufw allows as loopback.</li>
+      <li>Keys only, no root login (<code>10-hardening.conf</code>).</li>
+      <li>The CI deploy key in <code>authorized_keys</code> is restricted to <code>from="127.0.0.1"</code>, so it only works when it comes through the tunnel.</li>
+      <li>deploy.sh logs in as <code>evanh</code> (passwordless sudo) and runs <code>sudo docker compose …</code>.</li>
+    </ul>
+    <div class="files">deploy/provision.sh · deploy/ci_authorized_key · deploy/deploy.sh</div>`,
+  cfssh: `<h3>Cloudflare Access: ssh.eh-ai-blast.app</h3><div class="kind">edge · zero-trust app</div>
+    <p>Nothing reaches this hostname without the <b>service token</b> (repo secrets <code>CF_ACCESS_CLIENT_ID/SECRET</code>). The SSH key is a second, independent check behind it. The token lasts a year; rotate it with <code>terraform apply -replace=…access_service_token.ci</code>.</p>
+    <div class="files">infra/cloudflare.tf → access_application.ssh, access_policy.ci</div>`,
+  gha: `<h3>GitHub Actions: ci</h3><div class="kind">CI · .github/workflows/deploy.yml</div>
+    <ul>
+      <li><b>check</b>: migration immutability, type check, tests, build.</li>
+      <li><b>images</b>: <code>docker build</code> both images on every PR. On main, push them tagged <code>\${GITHUB_SHA::7}</code>. Its token has <code>packages: write</code> and nothing else.</li>
+      <li><b>deploy</b> (main only, needs both): installs a pinned and checksummed cloudflared, SSHes via <code>ProxyCommand cloudflared access ssh</code>, runs <code>deploy/deploy.sh</code>. <b>It runs no npm code</b>, so dependency code never executes in the job that holds deploy credentials.</li>
+      <li>Actions pinned to commit SHAs: the deploy job ends up with sudo on the droplet, so a moved tag would effectively give root.</li>
+    </ul>
+    <div class="files">.github/workflows/deploy.yml</div>`,
+  ghcr: `<h3>GitHub Container Registry</h3><div class="kind">registry</div>
+    <pre>ghcr.io/evanh1393/ai-news-app-app:&lt;sha7&gt;
+ghcr.io/evanh1393/ai-news-app-ingest:&lt;sha7&gt;</pre>
+    <p>The packages are public (inherited from the public repo), so the droplet pulls without logging in. The <code>org.opencontainers.image.source</code> label links each package back to the repo.</p>
+    <p>No <code>:latest</code> is pushed. The tag is always a commit, so a rollback means redeploying an older SHA, and the droplet pulls that tag again.</p>`,
+};
+
+const FLOWS = {
+  request: [
+    { n: ['reader', 'cfweb'], e: ['reader-cfweb'], t: 'The browser resolves <code>eh-ai-blast.app</code> to a Cloudflare IP (proxied CNAME) and opens HTTPS to the edge. TLS ends here. On a search route, the rate-limit rule is checked first.' },
+    { n: ['cfweb', 'cloudflared'], e: ['cloudflared-cfweb'], rev: ['cloudflared-cfweb'], t: 'Cloudflare looks up the <b>ai-briefing-web</b> tunnel and sends the request down the connection that the cloudflared container <em>opened earlier</em>. The dashes run backwards: data flows in, but the connection was opened from inside.' },
+    { n: ['cloudflared', 'app'], e: ['cloudflared-app'], t: 'The tunnel\'s ingress rule says <code>http://app:3000</code>. Docker DNS on the <code>web</code> network resolves <code>app</code> to the app container\'s IP, and cloudflared proxies the request to it.' },
+    { n: ['app', 'volume'], e: ['app-volume'], t: 'SvelteKit runs the loader, which calls <code>withDb()</code>. That opens a <b>new read-only</b> SQLite connection to <code>/data/briefing.db</code>, queries, and closes it.' },
+    { n: ['app', 'cloudflared', 'cfweb', 'reader'], e: ['cloudflared-app', 'cloudflared-cfweb', 'reader-cfweb'], rev: ['cloudflared-app', 'reader-cfweb'], t: 'The response travels back the same way. The edge adds <code>X-Content-Type-Options: nosniff</code>. The host published no ports at any point.' },
+  ],
+  ingest: [
+    { n: ['timer'], e: [], t: 'At <b>:10 past the hour</b> (or 08:00 ET), <code>briefing-pull.timer</code> triggers <code>briefing-pull.service</code>.' },
+    { n: ['timer', 'dockerd'], e: ['timer-dockerd'], t: 'The oneshot service runs <code>docker compose run --rm --no-TTY ingest</code> in <code>/opt/ai-briefing/compose</code>. The image tag comes from <code>.env</code>.' },
+    { n: ['dockerd', 'ingest', 'secrets'], e: ['dockerd-ingest', 'secrets-ingest'], t: 'Docker creates a new ingest container: read-only root fs, no capabilities, <code>/tmp</code> tmpfs, the volume read-write, <code>drive-key.json</code> bind-mounted at <code>/run/secrets/</code>, and an extra group (983) so <code>node</code> can read it.' },
+    { n: ['ingest', 'drive'], e: ['ingest-drive'], t: 'pull.js signs a JWT → gets a 1-hour <code>drive.readonly</code> token → lists the folder → downloads only files whose md5 changed → parses and validates each. A malformed file is <em>rejected</em> and skipped. The rest continue.' },
+    { n: ['ingest', 'volume'], e: ['ingest-volume'], t: 'Backup to <code>.briefing.db.pull</code> → run pending migrations → apply → <code>verify()</code> → hard-link the current file to <code>.prev</code> → <code>rename()</code> the copy over <code>briefing.db</code>. The "DB swap" section walks through it step by step.' },
+    { n: ['app', 'volume'], e: ['app-volume'], t: 'The container exits and <code>--rm</code> deletes it. The app\'s <em>next</em> request opens a new connection and sees the new file. Nothing restarted.' },
+  ],
+  deploy: [
+    { n: ['gha'], e: [], t: 'A PR merges to main. <b>check</b> (tests, types, migrations) and <b>images</b> (docker build) run in parallel.' },
+    { n: ['gha', 'ghcr'], e: ['gha-ghcr'], t: 'The images job pushes <code>ai-news-app-app:&lt;sha7&gt;</code> and <code>ai-news-app-ingest:&lt;sha7&gt;</code> to GHCR.' },
+    { n: ['gha', 'cfssh'], e: ['gha-cfssh'], t: 'The deploy job (needs both) runs <code>ssh ai-briefing-do</code> with <code>ProxyCommand cloudflared access ssh</code>, presenting the Access service token to <code>ssh.eh-ai-blast.app</code>.' },
+    { n: ['cfssh', 'hostcfd', 'sshd'], e: ['hostcfd-cfssh', 'hostcfd-sshd'], rev: ['hostcfd-cfssh'], t: 'Access lets it through and sends it down the <b>host</b> tunnel to <code>127.0.0.1:22</code>. sshd checks the CI key, which is only valid from 127.0.0.1.' },
+    { n: ['sshd', 'dockerd'], e: ['sshd-dockerd'], t: '<code>deploy.sh</code> copies <code>compose.yaml</code> and the timer units, and writes <code>.env</code> with <code>TAG=&lt;sha7&gt;</code> and <code>DRIVE_KEY_GID</code>.' },
+    { n: ['dockerd', 'ghcr'], e: ['dockerd-ghcr'], t: '<code>docker compose --profile ingest pull</code> pulls both new images. <code>--profile ingest</code> is needed or the ingest image would be skipped.' },
+    { n: ['dockerd', 'ingest', 'volume'], e: ['dockerd-ingest', 'ingest-volume'], t: '<b>Ingest runs first</b> (<code>systemctl start briefing-pull.service</code>) so migrations run before the new app code reads the schema. If it fails, the journal is printed but the deploy continues.' },
+    { n: ['dockerd', 'app', 'cloudflared'], e: ['dockerd-app'], t: '<code>compose up -d --no-build --remove-orphans --wait --wait-timeout 90</code> recreates the app (new image), waits for the healthcheck, and cloudflared follows. If the app isn\'t healthy within 90 s, the deploy fails. Finally, old image tags are deleted.' },
+  ],
+  human: [
+    { n: ['sshd'], e: [], t: 'You SSH over <b>Tailscale</b>: ufw allows port 22 only on <code>tailscale0</code>, and the DO firewall has no inbound rules at all.' },
+    { n: ['sshd', 'dockerd'], e: ['sshd-dockerd'], t: '<code>cd /opt/ai-briefing/compose && sudo docker compose ps</code>, <code>logs app</code>, <code>run --rm ingest --check</code>, and so on. See "Commands".' },
+    { n: ['volume'], e: [], t: 'From your laptop, <code>npm run db:pull</code> runs <code>sudo cat</code> on the volume file over SSH, runs <code>quick_check</code> on the copy, and writes <code>data/briefing.db</code> for <code>npm run dev</code>.' },
+  ],
+  breach: [
+    { n: ['app'], e: [], bad: ['app'], t: 'Suppose an attacker gets code execution inside the app process. What can they reach?' },
+    { n: ['app'], e: [], blocked: ['app-internet'], t: '<b>No outbound network.</b> <code>web</code> is <code>internal: true</code>, so there\'s no default route. They can\'t reach Drive, download tools, or exfiltrate to the internet.' },
+    { n: ['app', 'volume'], e: [], blocked: ['app-volume'], t: '<b>Can\'t modify data.</b> The volume is mounted <code>:ro</code>. They can read briefing.db, but that data is already public on the site.' },
+    { n: ['app', 'secrets'], e: [], blocked: ['secrets-cloudflared', 'secrets-ingest'], t: '<b>No secrets.</b> The tunnel token is only mounted in cloudflared, the Drive key only in ingest. The app has no Docker socket and no env secrets.' },
+    { n: ['app', 'cloudflared'], e: ['cloudflared-app'], t: 'It can reach cloudflared on <code>web</code>, but cloudflared exposes nothing useful, and its tunnel only routes to <code>app:3000</code>, never to sshd (that\'s the separate host tunnel).' },
+    { n: ['app'], e: [], t: 'Inside the container: read-only root fs (they can\'t write a backdoor anywhere outside the <code>/tmp</code> tmpfs, which disappears on restart), no Linux capabilities, <code>no-new-privileges</code> (setuid binaries don\'t help), running as <code>node</code>, not root.' },
+  ],
+};
+
+const svg = document.getElementById('mapSvg');
+const nodeEls = {}, edgeEls = {}, edgeLabels = {};
+
+function drawMap() {
+  // zones
+  el('rect', { x: 18, y: 112, width: 964, height: 92, rx: 12, fill: 'var(--cf-soft)', stroke: 'var(--cf)', 'stroke-dasharray': '6 4' }, svg);
+  el('text', { x: 30, y: 128, class: 'zone-label', fill: 'var(--cf)' }, svg).textContent = 'CLOUDFLARE EDGE';
+  el('rect', { x: 18, y: 222, width: 964, height: 430, rx: 14, fill: 'var(--host-soft)', stroke: 'var(--host)', 'stroke-dasharray': '6 4' }, svg);
+  el('text', { x: 30, y: 240, class: 'zone-label', fill: 'var(--host)' }, svg).textContent = 'DROPLET ai-briefing-do · Debian 13 · no inbound ports';
+  el('rect', { x: 36, y: 252, width: 690, height: 388, rx: 12, fill: 'var(--panel)', 'fill-opacity': .55, stroke: 'var(--line)' }, svg);
+  el('text', { x: 48, y: 270, class: 'zone-label', fill: 'var(--muted)' }, svg).textContent = 'DOCKER ENGINE · compose project "ai-news-app"';
+  el('rect', { x: 54, y: 288, width: 345, height: 140, rx: 10, fill: 'var(--web-soft)', stroke: 'var(--web)', 'stroke-dasharray': '6 4', 'stroke-width': 1.5 }, svg);
+  el('text', { x: 64, y: 304, class: 'zone-label', fill: 'var(--web)' }, svg).textContent = 'net: web (internal: true)';
+  el('rect', { x: 302, y: 296, width: 410, height: 124, rx: 10, fill: 'var(--egress-soft)', stroke: 'var(--egress)', 'stroke-dasharray': '6 4', 'stroke-width': 1.5 }, svg);
+  el('text', { x: 560, y: 412, class: 'zone-label', fill: 'var(--egress)', 'text-anchor': 'middle' }, svg).textContent = 'net: egress (default bridge, NAT out)';
+
+  const gE = el('g', {}, svg), gL = el('g', {}, svg), gN = el('g', {}, svg);
+  for (const [id, e] of Object.entries(EDGES)) {
+    const a = NODES[e.from], b = NODES[e.to];
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
+    const bend = e.bend || 0;
+    const cx = mx - (dy / len) * bend, cy = my + (dx / len) * bend;
+    const p = el('path', { d: `M${a.x},${a.y} Q${cx},${cy} ${b.x},${b.y}`, class: 'edge' }, gE);
+    if (e.hidden) p.style.display = 'none';
+    edgeEls[id] = p;
+    if (e.label) {
+      const lx = 0.25 * a.x + 0.5 * cx + 0.25 * b.x, ly = 0.25 * a.y + 0.5 * cy + 0.25 * b.y;
+      const t = el('text', { x: lx, y: ly - 4, class: 'elabel', 'text-anchor': 'middle' }, gL);
+      t.textContent = e.label;
+      edgeLabels[id] = t;
+    }
+    if (e.hidden) {
+      // a short stub with an X, shown only when "blocked"
+      const sx = a.x + (b.x - a.x) * 0.0 + 0, sy = a.y - 32;
+      const stub = el('g', { style: 'display:none' }, gL);
+      el('line', { x1: a.x, y1: a.y - 32, x2: a.x, y2: a.y - 90, class: 'edge blocked' }, stub);
+      el('line', { x1: a.x - 9, y1: sy - 70, x2: a.x + 9, y2: sy - 52, class: 'xmark' }, stub);
+      el('line', { x1: a.x + 9, y1: sy - 70, x2: a.x - 9, y2: sy - 52, class: 'xmark' }, stub);
+      el('text', { x: a.x + 14, y: sy - 58, class: 'elabel', fill: 'var(--bad)', style: 'fill:var(--bad)' }, stub).textContent = 'no route out';
+      edgeEls[id] = stub; stub.dataset.stub = '1';
+    }
+  }
+  for (const [id, n] of Object.entries(NODES)) {
+    const g = el('g', { class: 'node', 'data-id': id, tabindex: 0 }, gN);
+    const x = n.x - n.w / 2, y = n.y - n.h / 2;
+    if (n.cyl) {
+      const r = 9;
+      el('path', { class: 'box', d: `M${x},${y + r} A${n.w / 2},${r} 0 0 1 ${x + n.w},${y + r} V${y + n.h - r} A${n.w / 2},${r} 0 0 1 ${x},${y + n.h - r} Z` }, g);
+      el('path', { d: `M${x},${y + r} A${n.w / 2},${r} 0 0 0 ${x + n.w},${y + r}`, fill: 'none', stroke: 'var(--line)', 'stroke-width': 1.5 }, g);
+    } else {
+      el('rect', { class: 'box', x, y, width: n.w, height: n.h, rx: 9 }, g);
+    }
+    el('text', { x: n.x, y: n.y - 3 + (n.cyl ? 4 : 0), class: 't1', 'text-anchor': 'middle' }, g).textContent = n.t1;
+    el('text', { x: n.x, y: n.y + 13 + (n.cyl ? 4 : 0), class: 't2', 'text-anchor': 'middle' }, g).textContent = n.t2;
+    g.addEventListener('click', () => select(id));
+    g.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); select(id); } });
+    nodeEls[id] = g;
+  }
+}
+
+const detail = document.getElementById('detail');
+function select(id) {
+  for (const g of Object.values(nodeEls)) g.classList.remove('sel');
+  if (id && nodeEls[id]) nodeEls[id].classList.add('sel');
+  detail.innerHTML = DETAILS[id] || DETAILS._intro;
+}
+
+let flow = null, step = 0, autoTimer = null;
+const narr = document.getElementById('narr');
+function clearMap() {
+  for (const g of Object.values(nodeEls)) g.classList.remove('lit', 'dim', 'blocked');
+  for (const [id, p] of Object.entries(edgeEls)) {
+    p.classList.remove('lit', 'rev', 'dim', 'blocked');
+    if (p.dataset.stub) p.style.display = 'none';
+  }
+  for (const t of Object.values(edgeLabels)) t.style.opacity = '';
+}
+function render() {
+  clearMap();
+  if (!flow) { narr.classList.remove('show'); return; }
+  const s = FLOWS[flow][step];
+  narr.classList.add('show');
+  for (const [id, g] of Object.entries(nodeEls)) g.classList.add(s.n.includes(id) ? 'lit' : 'dim');
+  for (const [id, p] of Object.entries(edgeEls)) {
+    if (p.dataset.stub) continue;
+    if (s.e.includes(id)) { p.classList.add('lit'); if ((s.rev || []).includes(id)) p.classList.add('rev'); }
+    else p.classList.add('dim');
+  }
+  for (const [id, t] of Object.entries(edgeLabels)) t.style.opacity = s.e.includes(id) || (s.blocked || []).includes(id) ? 1 : .15;
+  for (const id of s.blocked || []) {
+    const p = edgeEls[id];
+    if (p.dataset.stub) p.style.display = '';
+    else { p.classList.remove('dim'); p.classList.add('blocked'); }
+  }
+  for (const id of s.bad || []) nodeEls[id].classList.add('blocked');
+  document.getElementById('narrNo').textContent = `STEP ${step + 1} / ${FLOWS[flow].length}`;
+  document.getElementById('narrText').innerHTML = s.t;
+  document.getElementById('narrPrev').disabled = step === 0;
+  document.getElementById('narrNext').disabled = step === FLOWS[flow].length - 1;
+  document.querySelectorAll('[data-flow]').forEach((b) => b.classList.toggle('on', b.dataset.flow === flow));
+}
+function stopAuto() { clearInterval(autoTimer); autoTimer = null; document.getElementById('narrAuto').textContent = '▶ Auto-play'; }
+document.querySelectorAll('[data-flow]').forEach((b) => b.onclick = () => { stopAuto(); flow = b.dataset.flow; step = 0; render(); });
+document.getElementById('flowReset').onclick = () => { stopAuto(); flow = null; document.querySelectorAll('[data-flow]').forEach((b) => b.classList.remove('on')); render(); };
+document.getElementById('narrPrev').onclick = () => { stopAuto(); if (step > 0) { step--; render(); } };
+document.getElementById('narrNext').onclick = () => { stopAuto(); if (step < FLOWS[flow].length - 1) { step++; render(); } };
+document.getElementById('narrAuto').onclick = (ev) => {
+  if (autoTimer) return stopAuto();
+  ev.target.textContent = '⏸ Pause';
+  autoTimer = setInterval(() => { if (step < FLOWS[flow].length - 1) { step++; render(); } else stopAuto(); }, 3800);
+};
+drawMap(); select(null);
+
+/* ================= CODE WALKERS ================= */
+const WALK = {
+  'dockerfile-app': { src: 'src-dockerfile-app', file: 'Dockerfile', notes: [
+    ['FROM node:26-alpine AS build', 'Stage 1: build', 'Alpine keeps the base small (~50 MB vs ~400 MB for Debian). Node 26 matches CI (<code>setup-node</code> 26). <code>AS build</code> names the stage so later stages can <code>COPY --from=build</code>.'],
+    ['COPY package.json package-lock.json ./', 'Lockfile first, source later', 'Docker caches each layer. Copying <em>only</em> the manifests first means the expensive <code>npm ci</code> layer is reused until the lockfile changes. Editing a <code>.svelte</code> file only invalidates the layers from <code>COPY . .</code> down.'],
+    ['RUN npm ci --ignore-scripts', 'All deps, no install scripts', '<code>npm ci</code> installs exactly the lockfile. <code>--ignore-scripts</code> blocks postinstall hooks (a common supply-chain attack path). It’s safe because better-sqlite3 ships a prebuilt binary and doesn’t need its build script.'],
+    ['COPY . .', 'The (trimmed) source', 'Copies the build context, which <code>.dockerignore</code> has cut down to package files, configs, <code>src/</code>, <code>static/</code> and <code>shared/</code>, minus tests. See "Build context".'],
+    ['ARG APP_VERSION=unknown', 'Version for the footer', '<code>vite.config.ts</code> normally reads the version from git, but the build context has no <code>.git</code>. CI passes <code>--build-arg APP_VERSION=&lt;sha7&gt;</code>. ARGs exist only during the build and aren’t kept in the runtime environment.'],
+    ['RUN APP_VERSION=$APP_VERSION npm run build', 'vite build → /app/build', 'adapter-node writes a standalone server into <code>build/</code>: <code>build/index.js</code>, the client assets, and the prerendered pages.'],
+    ['FROM node:26-alpine AS deps', 'Stage 2: production deps only', 'A clean stage that never sees the source. Its cache key is just the lockfile.'],
+    ['RUN npm ci --omit=dev --ignore-scripts', 'Runtime packages', 'Only <code>dependencies</code>: better-sqlite3, drizzle-orm, a font package. Vite, Svelte, Tailwind, TypeScript and so on stay out of the shipped image. SvelteKit bundles most app code into <code>build/</code>, and native modules like better-sqlite3 stay external.'],
+    ['FROM node:26-alpine\n', 'Stage 3: what actually ships', 'A fresh base. Everything from stages 1 and 2 is thrown away except what gets <code>COPY --from</code>-ed in below.'],
+    ['LABEL org.opencontainers.image.source', 'OCI source label', 'GHCR uses this to link the package to the GitHub repo, which is how the package inherits the repo’s public visibility.'],
+    ['COPY package.json ./', 'package.json only', 'Needed because it has <code>"type": "module"</code> (and the <code>imports</code> map), so Node treats <code>build/*.js</code> as ESM.'],
+    ['COPY --from=deps', 'Prod node_modules', 'From stage 2.'],
+    ['COPY --from=build', 'The built server', 'From stage 1. No source, no dev deps.'],
+    ['RUN mkdir /data && chown node:node /data', 'Pre-own the mount point', 'When Docker first creates an empty named volume and mounts it here, it copies the directory’s ownership into the volume. Both images do this, so the volume is <code>node:node</code> no matter which container starts first, and ingest (as <code>node</code>) can write it.'],
+    ['ENV NODE_ENV=production', 'Runtime env', '<code>HOST=0.0.0.0</code>: listen on all interfaces <em>inside the container</em>. That’s safe because no port is published, so only containers on <code>web</code> can reach it. <code>BRIEFING_DB</code> points at the volume. The NODE_OPTIONS flag silences the experimental-warning noise in logs.'],
+    ['USER node', 'Drop root', 'The official node images include a <code>node</code> user (uid 1000). Everything from here runs unprivileged.'],
+    ['EXPOSE 3000', 'Documentation only', 'EXPOSE doesn’t open or publish anything. It’s metadata. Reachability is decided by compose networks.'],
+    ['CMD ["node", "build"]', 'Start the server', 'Exec form (JSON array), so <code>node</code> is PID 1 and receives SIGTERM directly when compose stops it. A shell-form <code>CMD node build</code> would wrap it in <code>sh</code>, which doesn’t forward signals.'],
+  ] },
+  'dockerfile-ingest': { src: 'src-dockerfile-ingest', file: 'ingest/Dockerfile', notes: [
+    ['FROM node:26-alpine', 'One stage', 'Ingest is plain ESM JavaScript (type-checked with JSDoc, not compiled), so there’s no build step and no need for a multi-stage file.'],
+    ['RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force', 'Prod deps + clean cache', 'Same package.json as the app, so it installs the same runtime deps (better-sqlite3 is the one ingest needs). Cleaning the npm cache in the <em>same</em> RUN keeps it out of the layer. A separate RUN would leave it in the earlier layer.'],
+    ['COPY shared/ shared/', 'Shared code', '<code>shared/inline-md.js</code> and <code>api-shape.js</code> are used by both ingest and the app. They moved here in containerize step 1.'],
+    ['COPY ingest/ ingest/', 'The ingest code + migrations', 'Includes <code>ingest/migrations/*.sql</code>, so <b>schema changes ship inside the ingest image</b>. That’s why deploy runs ingest before restarting the app. Tests and the Dockerfile itself are excluded by the dockerignore.'],
+    ['RUN mkdir /data && chown node:node /data', 'Same trick as the app', 'Either image can be the first to create the volume. Ingest is usually first, because deploy runs it before <code>up</code>.'],
+    ['ENV BRIEFING_DB=/data/briefing.db', 'Paths', 'pull.js defaults to the old systemd paths (<code>/opt/ai-briefing/data</code>, <code>/etc/ai-briefing/drive-key.json</code>). These override them to the volume and the compose secret mount.'],
+    ['USER node', 'Unprivileged', 'Writes the volume as <code>node</code>. Reads the Drive key through the extra group from <code>group_add</code>.'],
+    ['ENTRYPOINT ["node", "ingest/pull.js"]', 'ENTRYPOINT, not CMD', 'Anything after the service name becomes arguments to pull.js: <code>docker compose run --rm ingest --check</code> runs <code>node ingest/pull.js --check</code>. With CMD, those args would <em>replace</em> the whole command.'],
+  ] },
+  compose: { src: 'src-compose', file: 'compose.yaml', notes: [
+    ['name: ai-news-app', 'Project name', 'Prefixes every resource: containers <code>ai-news-app-app-1</code>, volume <code>ai-news-app_data</code>, networks <code>ai-news-app_web</code>. Without it, compose would use the directory name (<code>compose</code> on the droplet).'],
+    ['x-locked-down: &locked-down', 'A YAML anchor', 'Compose ignores top-level keys starting with <code>x-</code>, so they can hold reusable snippets. <code>&amp;locked-down</code> names this map, and each service merges it with <code>&lt;&lt;: *locked-down</code>.'],
+    ['read_only: true', 'Read-only root filesystem', 'The container can’t write anywhere in its image filesystem. Only explicit mounts (tmpfs, volumes) are writable, so an attacker can’t drop a persistent binary.'],
+    ['cap_drop: [ALL]', 'No Linux capabilities', 'Even root in a default container has ~14 capabilities (chown, net_raw, setuid…). These processes run as non-root and need none.'],
+    ['security_opt: [no-new-privileges:true]', 'No privilege escalation', 'Sets the kernel’s <code>no_new_privs</code> bit: setuid/setgid binaries can’t raise privileges after exec.'],
+    ['<<: *locked-down', 'Merge the anchor', 'Pulls in the three keys above. The same line appears in all three services.'],
+    ['build:\n', 'Build config (local only)', 'Lets you <code>docker compose build</code> on a laptop. The droplet never builds: deploy uses <code>--no-build</code> and pulls the CI images.'],
+    ['APP_VERSION: ${APP_VERSION:-unknown}', 'Build arg from env', '<code>${VAR:-default}</code> is compose’s shell-style substitution, read from the environment or <code>.env</code>.'],
+    ['image: ghcr.io/evanh1393/ai-news-app-app:${TAG:-latest}', 'Pinned image tag', 'On the droplet, <code>.env</code> sets <code>TAG=&lt;sha7&gt;</code>, so <code>pull</code>/<code>up</code> use exactly the commit CI built. <code>latest</code> is only a local fallback, since CI never pushes it.'],
+    ['restart: unless-stopped', 'Restart policy', 'Restarts on crash and on daemon/host reboot, unless you explicitly <code>docker compose stop</code> it.'],
+    ['tmpfs: [/tmp]', 'Scratch space', 'With a read-only root fs, anything that needs a temp file needs this. It’s in RAM and wiped on restart.'],
+    ['- data:/data:ro', 'Volume, read-only', 'The app can only read briefing.db. The swap trick (see "DB swap") relies on this split: one writer, many readers.'],
+    ['networks: [web]', 'Internal network only', 'Explained under <code>networks:</code> at the bottom of the file.'],
+    ['healthcheck:', 'Healthcheck', 'Docker runs this <em>inside</em> the container. Status goes <code>starting → healthy/unhealthy</code>. It drives cloudflared’s <code>depends_on</code> condition and <code>compose up --wait</code> in deploys. Note: Docker doesn’t restart a container for being unhealthy. It only reports it.'],
+    ['test: ["CMD", "wget"', 'busybox wget', 'Alpine includes busybox wget, so no curl needs to be installed. <code>--spider</code> = HEAD-like, don’t save the body. 127.0.0.1 because it runs in the container’s own network namespace.'],
+    ['start_period: 10s', 'Grace period', 'Failures during the first 10 s don’t count toward unhealthy, which gives Node time to boot.'],
+    ['image: cloudflare/cloudflared:2026.9.3', 'Pinned upstream image', 'A fixed version tag. Upgrades happen in a PR. The image runs as uid 65532 (nonroot).'],
+    ['command: tunnel --no-autoupdate run --token-file', 'Token from a file', '<code>--token-file</code> instead of <code>--token</code> or <code>TUNNEL_TOKEN</code> env: env vars show up in <code>docker inspect</code> and <code>/proc/*/environ</code>, but a mounted file doesn’t.'],
+    ['secrets: [tunnel_token]', 'Short-form secret', 'Mounted at <code>/run/secrets/tunnel_token</code>.'],
+    ['networks: [web, egress]', 'The bridge between zones', 'The only container on both. <code>egress</code> to reach Cloudflare, <code>web</code> to reach the app.'],
+    ['condition: service_healthy', 'Start order', 'Plain <code>depends_on</code> only waits for the container to <em>start</em>. This waits for the app’s healthcheck to pass.'],
+    ['dockerfile: ingest/Dockerfile', 'Different Dockerfile, same context', 'The context is still the repo root (it needs <code>shared/</code>), so BuildKit uses <code>ingest/Dockerfile.dockerignore</code>.'],
+    ['profiles: [ingest]', 'Opt-in service', 'Services with a profile are skipped by <code>up</code>, <code>pull</code> and <code>down</code> unless that profile is enabled (<code>--profile ingest</code>). <code>docker compose run ingest</code> enables it implicitly.'],
+    ['- source: drive_key', 'Long-form secret', '<code>target: drive-key.json</code> → mounted at <code>/run/secrets/drive-key.json</code>, matching <code>DRIVE_KEY</code> in the image.'],
+    ['group_add: ["${DRIVE_KEY_GID:-1000}"]', 'Extra group', 'Non-swarm secrets are plain bind mounts and keep the host file’s uid/gid/mode. On the droplet the key is <code>root:briefing-pull 0640</code>, so <code>.env</code> sets <code>DRIVE_KEY_GID=983</code> and <code>node</code> can read it through group permissions. It isn’t chowned to 1000 because on the host uid 1000 is the <code>evanh</code> login user.'],
+    ['- data:/data\n', 'Volume, read-write', 'Ingest is the only writer.'],
+    ['networks: [egress]', 'Out to Google only', 'Not on <code>web</code>, so ingest can’t even reach the app.'],
+    ['secrets:\n', 'Secret sources', 'Files on the host. <code>SECRETS_DIR</code> lets you point at a test directory locally. Outside swarm, these are bind mounts, not encrypted stores, so file permissions are what protect them.'],
+    ['volumes:\n', 'Named volume', 'Declared with no options, so it uses the local driver under <code>/var/lib/docker/volumes/</code>. It survives <code>down</code>, <code>up</code>, image changes and recreation.'],
+    ['internal: true', 'No way out', 'An internal network has no gateway/NAT to the host, so containers on it can only talk to each other. This is what keeps the app from making outbound connections.'],
+    ['egress:', 'Normal bridge', 'A default user-defined bridge with NAT to the internet. It’s called "egress" because that’s its job: outbound only. Nothing publishes ports onto it.'],
+  ] },
+};
+
+function makeWalker(container, key) {
+  const w = WALK[key];
+  const lines = document.getElementById(w.src).textContent.split('\n');
+  const text = lines.join('\n');
+  // map each note to its first matching line index (searching from previous match forward)
+  const byLine = {};
+  let from = 0;
+  for (const [needle, title, body] of w.notes) {
+    const pos = text.indexOf(needle, offsetOf(lines, from));
+    if (pos < 0) continue;
+    const li = text.slice(0, pos).split('\n').length - 1;
+    byLine[li] = { title, body };
+    from = li + 1;
+  }
+  const code = lines.map((l, i) => {
+    const isC = /^\s*#/.test(l);
+    const content = isC ? `<span class="c">${esc(l)}</span>` : esc(l) || ' ';
+    return `<div class="ln${byLine[i] ? ' has' : ''}" data-i="${i}"><span class="n">${i + 1}</span>${content}</div>`;
+  }).join('');
+  container.innerHTML = `<div class="code">${code}</div><div class="note"><h4>${w.file}</h4><div class="body"><p class="hint">Click a line with an orange edge. You can also use ↑/↓ to step through the annotated lines once one is selected.</p></div></div>`;
+  const keys = Object.keys(byLine).map(Number).sort((a, b) => a - b);
+  const note = container.querySelector('.note');
+  let cur = -1;
+  const show = (i) => {
+    cur = i;
+    container.querySelectorAll('.ln').forEach((d) => d.classList.toggle('cur', +d.dataset.i === i));
+    const n = byLine[i];
+    note.innerHTML = `<h4>${w.file} · line ${i + 1} · ${keys.indexOf(i) + 1}/${keys.length}</h4><div class="body"><strong>${n.title}</strong><p>${n.body}</p></div>
+      <div class="row"><button data-d="-1">← prev</button><button data-d="1">next →</button></div>`;
+    note.querySelectorAll('button').forEach((b) => b.onclick = () => step(+b.dataset.d));
+  };
+  const step = (d) => { const k = keys.indexOf(cur); const nk = keys[Math.max(0, Math.min(keys.length - 1, (k < 0 ? 0 : k + d)))]; show(nk); container.querySelector(`.ln[data-i="${nk}"]`).scrollIntoView({ block: 'nearest' }); };
+  container.querySelectorAll('.ln.has').forEach((d) => d.onclick = () => show(+d.dataset.i));
+  container.tabIndex = 0;
+  container.onkeydown = (ev) => { if (cur < 0) return; if (ev.key === 'ArrowDown') { ev.preventDefault(); step(1); } if (ev.key === 'ArrowUp') { ev.preventDefault(); step(-1); } };
+}
+function offsetOf(lines, li) { let o = 0; for (let i = 0; i < li && i < lines.length; i++) o += lines[i].length + 1; return o; }
+
+const imgWalker = document.getElementById('imgWalker');
+makeWalker(imgWalker, 'dockerfile-app');
+document.querySelectorAll('#imgTabs button').forEach((b) => b.onclick = () => {
+  document.querySelectorAll('#imgTabs button').forEach((x) => x.classList.toggle('on', x === b));
+  makeWalker(imgWalker, b.dataset.walk);
+});
+makeWalker(document.getElementById('composeWalker'), 'compose');
+
+/* stage hover → highlight related lines */
+const stageLines = { build: [3, 10], deps: [13, 16], final: [18, 34] };
+document.querySelectorAll('.stage').forEach((s) => {
+  s.addEventListener('mouseenter', () => {
+    if (!document.querySelector('#imgTabs button.on[data-walk="dockerfile-app"]')) return;
+    const [a, b] = stageLines[s.dataset.stage];
+    imgWalker.querySelectorAll('.ln').forEach((d) => { const i = +d.dataset.i; d.style.background = i >= a && i <= b ? 'color-mix(in srgb, var(--accent) 10%, transparent)' : ''; });
+  });
+  s.addEventListener('mouseleave', () => imgWalker.querySelectorAll('.ln').forEach((d) => d.style.background = ''));
+});
+
+/* ================= CONTEXT ================= */
+const CTX = [
+  ['package.json', 'deps + scripts', 1, 1],
+  ['package-lock.json', 'exact versions', 1, 1],
+  ['src/', 'SvelteKit app', 1, 0],
+  ['src/**/*.test.ts', 'app tests', 0, 0],
+  ['static/', 'favicon, robots.txt', 1, 0],
+  ['shared/', 'code used by both', 1, 1],
+  ['vite.config.ts', 'build config', 1, 0],
+  ['tsconfig.json', 'TS config', 1, 0],
+  ['ingest/', 'pull.js, apply.js, migrations', 0, 1],
+  ['ingest/*.test.js', 'ingest tests', 0, 0],
+  ['ingest/check-migrations.sh', 'CI-only script', 0, 0],
+  ['ingest/Dockerfile*', 'build files', 0, 0],
+  ['data/briefing.db', 'local dev DB ⚠', 0, 0],
+  ['infra/terraform.tfstate', 'Terraform state ⚠ secrets', 0, 0],
+  ['infra/.env', 'API tokens ⚠', 0, 0],
+  ['node_modules/', 'host-built modules', 0, 0],
+  ['build/', 'host build output', 0, 0],
+  ['.git/', 'history', 0, 0],
+  ['deploy/', 'scripts, CI key', 0, 0],
+  ['.github/', 'workflows', 0, 0],
+  ['README.md', 'docs', 0, 0],
+  ['docs/', 'this page', 0, 0],
+];
+const ctxGrid = document.getElementById('ctxGrid');
+function renderCtx(which) {
+  const col = which === 'app' ? 2 : 3;
+  ctxGrid.innerHTML = CTX.map((r) => `<div class="${r[col] ? 'in' : 'out'}">${esc(r[0])}<small>${r[1]}</small></div>`).join('');
+  document.querySelectorAll('[data-ctx]').forEach((b) => b.classList.toggle('on', b.dataset.ctx === which));
+}
+document.querySelectorAll('[data-ctx]').forEach((b) => b.onclick = () => renderCtx(b.dataset.ctx));
+renderCtx('app');
+
+/* ================= MATRIX ================= */
+const MX = [
+  ['Read-only root fs', ['y', 'y', 'y'], 'From <code>x-locked-down</code>. The image filesystem is immutable at runtime. app and ingest get a <code>/tmp</code> tmpfs. cloudflared needs none.'],
+  ['Capabilities', ['none', 'none', 'none'], '<code>cap_drop: [ALL]</code>. None of these needs to bind low ports, change file ownership, or use raw sockets.'],
+  ['no-new-privileges', ['y', 'y', 'y'], 'setuid binaries (like busybox <code>su</code>) can\'t raise privileges.'],
+  ['Runs as', ['node (1000)', 'nonroot (65532)', 'node (1000) + gid 983'], '<code>USER node</code> in both Dockerfiles. cloudflared\'s upstream image already runs as 65532.'],
+  ['Outbound internet', ['n', 'y', 'y'], 'The app is only on <code>web</code> (internal). cloudflared needs Cloudflare, ingest needs Google.'],
+  ['Can reach app:3000', ['—', 'y', 'n'], 'Only containers on <code>web</code> can resolve and connect to <code>app</code>.'],
+  ['Published host ports', ['n', 'n', 'n'], 'No <code>ports:</code> anywhere. Nothing listens on the droplet\'s public interface, and the DO firewall has no inbound rules anyway.'],
+  ['Data volume', ['ro', '—', 'rw'], 'One writer, one reader. That split is what makes the rename-swap safe.'],
+  ['Secrets mounted', ['none', 'tunnel_token', 'drive-key.json'], 'Each secret goes only to the container that uses it.'],
+  ['Lifetime', ['always on', 'always on', 'per run (--rm)'], '<code>restart: unless-stopped</code> for the two long-running services. Ingest is created by the timer, runs for a few seconds, and is removed.'],
+  ['Healthcheck', ['y', 'n', 'n'], 'Only the app has one. cloudflared waits for it, and so does <code>compose up --wait</code> in deploys.'],
+];
+const mxBody = document.querySelector('#matrix tbody');
+const fmt = (v) => v === 'y' ? '<span class="y">yes</span>' : v === 'n' ? '<span class="n">no</span>' : v === '—' ? '<span class="m">—</span>' : `<code>${v}</code>`;
+mxBody.innerHTML = MX.map((r, i) => `<tr class="r" data-i="${i}"><td>${r[0]}</td>${r[1].map((v) => `<td>${fmt(v)}</td>`).join('')}</tr>`).join('');
+mxBody.querySelectorAll('tr').forEach((tr) => tr.onclick = () => { document.getElementById('mxNote').innerHTML = `<strong>${MX[+tr.dataset.i][0]}.</strong> ${MX[+tr.dataset.i][2]}`; });
+
+/* ================= SWAP ================= */
+const swapSvg = document.getElementById('swapSvg');
+el('rect', { x: 6, y: 6, width: 508, height: 318, rx: 12, fill: 'none', stroke: 'var(--line)', 'stroke-dasharray': '5 4' }, swapSvg);
+el('text', { x: 18, y: 26, class: 'zone-label', fill: 'var(--muted)' }, swapSvg).textContent = 'volume ai-news-app_data → /data';
+const appG = el('g', {}, swapSvg);
+el('rect', { x: 18, y: 250, width: 130, height: 56, rx: 9, fill: 'var(--node)', stroke: 'var(--web)', 'stroke-width': 1.5 }, appG);
+el('text', { x: 83, y: 274, 'text-anchor': 'middle', style: 'font:600 13px var(--sans)' }, appG).textContent = 'app (ro)';
+const appSub = el('text', { x: 83, y: 292, 'text-anchor': 'middle', style: 'font:11px var(--mono);fill:var(--muted)' }, appG);
+const appLine = el('path', { class: 'edge', d: '' }, swapSvg);
+const ingG = el('g', {}, swapSvg);
+el('rect', { x: 372, y: 250, width: 130, height: 56, rx: 9, fill: 'var(--node)', stroke: 'var(--egress)', 'stroke-width': 1.5 }, ingG);
+el('text', { x: 437, y: 274, 'text-anchor': 'middle', style: 'font:600 13px var(--sans)' }, ingG).textContent = 'ingest (rw)';
+const ingSub = el('text', { x: 437, y: 292, 'text-anchor': 'middle', style: 'font:11px var(--mono);fill:var(--muted)' }, ingG);
+
+const FILES = {};
+function mkFile(id, label) {
+  const g = el('g', { class: 'file hidden' }, swapSvg);
+  el('rect', { x: 0, y: 0, width: 200, height: 46, rx: 8 }, g);
+  const t = el('text', { x: 12, y: 20 }, g); t.textContent = label;
+  const s = el('text', { x: 12, y: 36, style: 'font:11px var(--mono);fill:var(--muted)' }, g);
+  FILES[id] = { g, s };
+}
+mkFile('live', 'briefing.db');
+mkFile('pull', '.briefing.db.pull');
+mkFile('prev', 'briefing.db.prev');
+const SLOTS = { A: [30, 50], B: [290, 50], C: [30, 130], D: [290, 130] };
+
+const SWAP = [
+  { title: 'Steady state', t: 'One live file. The app opens it read-only per request. Ingest isn\'t running (the timer hasn\'t fired yet).',
+    files: { live: ['A', 'live', 'inode 41 · v3 · day N-1'] }, app: 'live', appS: 'reads inode 41', ingS: 'not running' },
+  { title: 'Snapshot with the online backup API', t: '<code>live.backup(tmp)</code> uses SQLite\'s backup API (opened read-only) to make a consistent copy at <code>.briefing.db.pull</code>, even if something is reading the live file at the same moment. Readers aren\'t blocked.',
+    files: { live: ['A', 'live', 'inode 41 · v3'], pull: ['B', 'work', 'inode 87 · copy of v3'] }, app: 'live', appS: 'reads inode 41', ingS: 'backup → .pull', ing: 'pull' },
+  { title: 'Migrate + apply in one transaction', t: '<code>openWriter(db)</code> runs any pending <code>ingest/migrations/NNNN_*.sql</code> (tracked with <code>PRAGMA user_version</code>), then <code>applyAll(entries)</code>: each changed date is deleted and reinserted as a whole, FTS rows included, all or nothing. The app is still serving the old file and doesn\'t notice any of this.',
+    files: { live: ['A', 'live', 'inode 41 · v3'], pull: ['B', 'work', 'inode 87 · migrating, day N added'] }, app: 'live', appS: 'reads inode 41', ingS: 'migrate + apply', ing: 'pull' },
+  { title: 'verify()', t: '<code>PRAGMA integrity_check</code>, <code>foreign_key_check</code>, and an FTS5 <code>integrity-check</code>. <b>If any of them fails, the copy is deleted and pull.js exits 2.</b> The live file was never touched, so the site keeps serving yesterday\'s data.',
+    files: { live: ['A', 'live', 'inode 41 · v3'], pull: ['B', 'work', 'inode 87 · ✓ verified'] }, app: 'live', appS: 'reads inode 41', ingS: 'verify()', ing: 'pull' },
+  { title: 'Keep the previous version', t: 'Delete the old <code>.prev</code>, then <code>linkSync(DB_PATH, prev)</code>: a <b>hard link</b>, so it\'s a second name for inode 41, not a copy. No extra space used, and instant.',
+    files: { live: ['A', 'live', 'inode 41 · v3'], prev: ['C', 'old', 'inode 41 (same file)'], pull: ['B', 'work', 'inode 87 · ✓'] }, app: 'live', appS: 'reads inode 41', ingS: 'link → .prev', ing: 'prev' },
+  { title: 'rename() — the atomic swap', t: '<code>renameSync(tmp, DB_PATH)</code> moves the name <code>briefing.db</code> to inode 87 in one atomic step. At no instant is there a missing or half-written <code>briefing.db</code>. Any connection still open on inode 41 keeps reading it until it closes.',
+    files: { prev: ['C', 'old', 'inode 41 · v3 · rollback copy'], pull: ['A', 'live', 'briefing.db → inode 87 · v4'] }, app: 'live2', appS: 'next request → 87', ingS: 'rename()', ing: 'pull', relabel: true },
+  { title: 'Next request sees the new data', t: 'The container exits and is removed. The app\'s next <code>withDb()</code> opens the path again and gets inode 87. No restart, no lock contention, no downtime. To roll back the data by hand, copy <code>briefing.db.prev</code> back over it.',
+    files: { prev: ['C', 'old', 'inode 41 · v3'], pull: ['A', 'live', 'inode 87 · v4 · day N'] }, app: 'live2', appS: 'reads inode 87', ingS: 'exited (--rm)', relabel: true },
+];
+let swapStep = 0;
+function renderSwap() {
+  const s = SWAP[swapStep];
+  for (const [id, f] of Object.entries(FILES)) {
+    const spec = s.files[id];
+    f.g.setAttribute('class', 'file ' + (spec ? spec[1] : 'hidden'));
+    if (spec) { const [x, y] = SLOTS[spec[0]]; f.g.setAttribute('transform', `translate(${x},${y})`); f.s.textContent = spec[2]; }
+  }
+  FILES.pull.g.querySelector('text').textContent = s.relabel ? 'briefing.db' : '.briefing.db.pull';
+  const tgt = SLOTS.A;
+  appLine.setAttribute('d', `M83,250 L${tgt[0] + 60},${tgt[1] + 46}`);
+  appLine.setAttribute('class', 'edge lit rev');
+  appSub.textContent = s.appS; ingSub.textContent = s.ingS;
+  document.getElementById('swapNo').textContent = `STEP ${swapStep + 1} / ${SWAP.length}`;
+  document.getElementById('swapTitle').textContent = s.title;
+  document.getElementById('swapText').innerHTML = `<p>${s.t}</p>`;
+  document.getElementById('swapPrev').disabled = swapStep === 0;
+  document.getElementById('swapNext').disabled = swapStep === SWAP.length - 1;
+}
+document.getElementById('swapPrev').onclick = () => { swapStep--; renderSwap(); };
+document.getElementById('swapNext').onclick = () => { swapStep++; renderSwap(); };
+renderSwap();
+
+/* ================= TIMELINE ================= */
+const TL = [
+  ['PR', 'check + images on every PR', 'Migration immutability (<code>check-migrations.sh</code>: merged migrations can only be added, never edited), <code>svelte-check</code>, tests, build. Both images are built but <em>not pushed</em>, so a broken Dockerfile is caught before merge.'],
+  ['merge', 'Push to main triggers the same jobs again', 'This time the images job pushes <code>:&lt;sha7&gt;</code> to GHCR.', true],
+  ['CI', 'deploy job: needs check + images', 'Runs only if both succeeded. <code>concurrency: deploy-droplet</code> with <code>cancel-in-progress: false</code>: overlapping deploys queue instead of running at the same time.', true],
+  ['tunnel', 'SSH via Access + host tunnel', 'Pinned cloudflared (sha256-checked) as ProxyCommand. Service token first, SSH key second.', true],
+  ['deploy.sh', '1 · re-authorize CI key', 'Rewrites the <code>ai-briefing-ci-deploy</code> line in <code>authorized_keys</code> from the repo, so rotating the key in the repo also revokes the old one.'],
+  ['deploy.sh', '2 · install compose.yaml, units, .env', '<code>/opt/ai-briefing/compose/compose.yaml</code>, <code>.env</code> (<code>TAG</code>, <code>DRIVE_KEY_GID</code> looked up with <code>getent</code>), the timer + service into systemd, <code>daemon-reload</code>, enable the timer.'],
+  ['deploy.sh', '3 · docker compose --profile ingest pull', 'Both images at the new tag. If the push hadn\'t happened, this would fail.', true],
+  ['deploy.sh', '4 · run ingest (migrations) first', '<code>systemctl start briefing-pull.service</code>, the same path the timer uses. New migrations apply <em>before</em> new app code reads the schema. Not a gate: a rejected Drive file exits 1, so failures print the journal and the deploy continues. Migrations must be backward compatible for this reason. Old app code briefly runs on the new schema.'],
+  ['deploy.sh', '5 · compose up -d --no-build --remove-orphans --wait', 'Recreates any service whose image or config changed. <code>--wait</code> blocks until the app is healthy (≤ 90 s) or fails the job. <code>--remove-orphans</code> removes containers for services no longer in the file.', true],
+  ['deploy.sh', '6 · prune old images', 'Removes every <code>ghcr.io/evanh1393/ai-news-app-*</code> tag except the current one. This matters on a 1 GB / small-disk droplet. A rollback re-pulls.'],
+];
+document.getElementById('timeline').innerHTML = TL.map(([who, h, p, gate]) => `<div class="tl-item${gate ? ' gate' : ''}"><div class="who">${who}${gate ? ' ⛔' : ''}</div><div><h4>${h}</h4><p>${p}</p></div></div>`).join('');
+
+/* ================= WHAT IF ================= */
+const WI = [
+  ['…Grok Bot writes a malformed briefing?', '<p><code>parseBriefing</code> throws a <code>FormatError</code>, the file is logged as <em>rejected</em>, and the other changed files still ingest. pull.js exits <b>1</b>, so the systemd unit shows failed and the journal has the reason. Because its md5 isn\'t recorded in <code>drive_files</code>, it gets retried every hour until it\'s fixed. Validate locally with <code>node ingest/pull.js --file X.md</code>.</p>'],
+  ['…ingest crashes halfway through writing?', '<p>Nothing visible happens. All writes go to <code>.briefing.db.pull</code>, and the live file only changes at the final <code>rename()</code>. The next run deletes the stale copy (<code>rmSync(tmp)</code>) and starts over.</p>'],
+  ['…the new app image doesn\'t boot?', '<p>The healthcheck never passes, so <code>compose up --wait</code> times out after 90 s and <b>the deploy job fails</b>. Note that compose has already replaced the old container, so the site is down until you fix it or roll back. cloudflared keeps running and returns 502s. Roll back by redeploying an older commit (<code>TAG=&lt;old sha&gt; npm run deploy</code> from a checkout of that commit, or revert the PR).</p>'],
+  ['…I need to roll back a bad migration?', '<p>You can\'t edit a merged migration (CI blocks it). Add a new <code>NNNN_*.sql</code> that reverses it. For the data itself, <code>briefing.db.prev</code> holds the version from before the last ingest.</p>'],
+  ['…the droplet reboots?', '<p>dockerd starts on boot. app and cloudflared have <code>restart: unless-stopped</code>, so they come back (cloudflared waits for the app to become healthy only on <code>up</code>. On a daemon restart both just start, and cloudflared retries until the app answers). The timer has <code>Persistent=true</code>, so a missed 08:00 run happens at boot.</p>'],
+  ['…someone runs <code>docker compose down</code>?', '<p>The containers and networks are removed. <b>The volume survives.</b> <code>up -d</code> brings everything back. Only <code>down -v</code> would delete the data, and it\'s currently the only full copy of the archive, so don\'t.</p>'],
+  ['…the tunnel token leaks?', '<p>Someone could run a connector for <em>that</em> tunnel and receive some of its traffic. Rotate it in Cloudflare (or replace the tunnel with Terraform), put the new value from <code>terraform output -raw web_tunnel_token</code> in <code>/etc/ai-briefing/tunnel-token</code> (owner 65532, 0400), and <code>docker compose up -d --force-recreate cloudflared</code>.</p>'],
+  ['…I want to run the stack on my laptop?', '<p>Possible, but it isn’t the dev workflow (step 5 of the plan was skipped). You’d need <code>SECRETS_DIR</code> pointing at a directory with both files, then <code>docker compose build</code> and <code>up</code>. Day-to-day dev is <code>npm run dev</code> against <code>data/briefing.db</code> pulled from the volume with <code>npm run db:pull</code>.</p>'],
+  ['…why not just one container running everything?', '<ul><li>Different privileges: one needs the internet and write access plus a key, the other needs neither.</li><li>Different lifecycles: one is always on, the other runs for seconds each hour.</li><li>With two containers, each one’s network and mounts restrict exactly what it can reach.</li></ul>'],
+  ['…why SQLite on a volume and not a DB container?', '<p>One writer once an hour, small data, read-heavy. A file on a shared volume plus atomic rename gives consistent reads without running a server, connection pool, or extra network path. It was decided in the containerize plan (2026-10-19).</p>'],
+];
+document.getElementById('whatifCards').innerHTML = WI.map(([q, a]) => `<details class="panel card"><summary>${q}</summary>${a}</details>`).join('');
+
+/* ================= COMMANDS ================= */
+const CMDS = [
+  ['droplet', 'sudo docker compose ps', 'Service status + health.'],
+  ['droplet', 'sudo docker compose logs -f --tail 100 app', 'App logs (stdout of <code>node build</code>). Swap in <code>cloudflared</code>.'],
+  ['droplet', 'sudo docker compose run --rm ingest --check', 'Can the key see the folder? Lists files and pending migrations. Touches no DB.'],
+  ['droplet', 'sudo docker compose run --rm ingest --dry-run', 'Download + validate changed files, write nothing.'],
+  ['droplet', 'sudo systemctl start briefing-pull.service', 'Run ingest now, exactly as the timer would.'],
+  ['droplet', 'journalctl -u briefing-pull -n 50 --no-pager', 'Recent ingest output and exit status.'],
+  ['droplet', 'systemctl list-timers briefing-pull.timer', 'When does it fire next / when did it last fire?'],
+  ['droplet', 'cat /opt/ai-briefing/compose/.env', 'Which commit is deployed (TAG).'],
+  ['droplet', 'sudo docker inspect ai-news-app-app-1 --format \'{{json .State.Health}}\'', 'The healthcheck history.'],
+  ['droplet', 'sudo docker volume inspect ai-news-app_data', 'Where the data lives on disk.'],
+  ['droplet', 'sudo docker compose exec app sh', 'Shell inside the app. You\'ll find a read-only fs and no internet (try <code>wget example.com</code>).'],
+  ['laptop', 'npm run db:pull', 'Copy prod briefing.db (from the volume) to data/ for dev, with an integrity check.'],
+  ['laptop', 'docker build -t ai-news-app-app .', 'Build the app image locally to test a Dockerfile change.'],
+  ['laptop', 'docker build -f ingest/Dockerfile -t ai-news-app-ingest .', 'Same for ingest.'],
+  ['laptop', 'npm run deploy', 'deploy.sh by hand. Deploys HEAD, which must already be on main (CI must have pushed its images).'],
+];
+document.getElementById('cmdGrid').innerHTML = CMDS.map(([w, c, p]) => `<div class="panel cmd"><div class="where">${w}</div><pre>${esc(c)}</pre><p>${p}</p></div>`).join('');
+
+/* ================= SECTION NUMBERS ================= */
+document.querySelectorAll('section h2 .num').forEach((s, i) => { s.textContent = String(i).padStart(2, '0'); });
+
+/* ================= PRODUCT PIPELINE ================= */
+(() => {
+  const s = document.getElementById('pipeSvg');
+  const steps = [
+    ['Grok Bot', 'LLM agent, daily', 'var(--muted)'],
+    ['Google Drive', 'markdown files', 'var(--muted)'],
+    ['ingest', 'validate → SQLite', 'var(--egress)'],
+    ['briefing.db', 'shared volume', 'var(--accent)'],
+    ['app', 'SvelteKit, read-only', 'var(--web)'],
+    ['Cloudflare', 'tunnel · edge rules', 'var(--cf)'],
+    ['Readers / API', 'pages · /api/v1', 'var(--muted)'],
+  ];
+  const w = 124, gap = (1000 - steps.length * w) / (steps.length - 1);
+  steps.forEach(([t1, t2, c], i) => {
+    const x = i * (w + gap);
+    const g = el('g', {}, s);
+    el('rect', { x, y: 40, width: w, height: 64, rx: 10, fill: 'var(--node)', stroke: c, 'stroke-width': 2 }, g);
+    el('text', { x: x + w / 2, y: 68, 'text-anchor': 'middle', style: 'font:600 13.5px var(--sans)' }, g).textContent = t1;
+    el('text', { x: x + w / 2, y: 86, 'text-anchor': 'middle', style: 'font:10px var(--mono);fill:var(--muted)' }, g).textContent = t2;
+    if (i < steps.length - 1) el('path', { d: `M${x + w + 4},72 L${x + w + gap - 4},72`, class: 'edge lit' }, s);
+  });
+  const lab = (x, t, c) => { const e = el('text', { x, y: 128, 'text-anchor': 'middle', style: `font:600 11px var(--mono);fill:${c}` }, s); e.textContent = t; };
+  lab(186 + 0, 'upstream · not this repo', 'var(--muted)');
+  lab(500, 'this repo · on the droplet', 'var(--accent)');
+  lab(870, 'edge + public', 'var(--cf)');
+  el('text', { x: 500, y: 24, 'text-anchor': 'middle', style: 'font:11px var(--mono);fill:var(--muted)' }, s).textContent = 'hourly pull · the LLM output is untrusted at every hop →';
+})();
+
+/* ================= DATA TABS ================= */
+const DATA = {
+  schema: `<div class="walker" style="border:0;grid-template-columns:minmax(0,1fr) minmax(0,1fr)"><div>
+<pre style="background:var(--code-bg);padding:12px 14px;border-radius:8px;overflow-x:auto;font-size:12.5px;line-height:1.55;margin:0">briefings    date PK · title · coverage · intro_md · outage_alert · created_at
+  └ sections   (briefing_date, position) PK · title · note_md
+  └ items      id PK · briefing_date FK · category · position
+               headline · body (plain, for search) · summary (plain, for API)
+               body_md (source line, verbatim) · is_outage
+      └ item_links  item_id FK · label · url
+items_fts    FTS5(headline, body)  external content = items
+sources      grp · subgroup · position · value_md
+drive_files  name PK · file_id · md5 · ingested_at
+meta         key → value   (ingested_at, fts flag)
+outage_checks  (legacy, from Grok Bot's original DB)</pre></div>
+<div style="padding:0 0 0 18px">
+<p style="margin-top:0"><b>One row per briefing date</b>, cascading to sections, items and links. Re-ingesting a day deletes and reinserts that whole date in one transaction, so a revised briefing replaces the old one cleanly and other days' item IDs don't change.</p>
+<p><b>Three forms of the same text</b>: <code>body_md</code> (the original markdown, for rendering), <code>body</code> (plain text, for FTS) and <code>summary</code> (plain text after the headline, for the API). Each is computed once at ingest, so reads stay simple.</p>
+<p><b><code>drive_files</code></b> records each file's md5, so an hourly run downloads only what changed.</p>
+<p class="files" style="font:12px var(--mono);color:var(--muted)">ingest/migrations/0001_baseline.sql · 0002 · 0003 · src/lib/server/schema.ts</p></div></div>`,
+  ingest: `<ol style="margin:0;padding-left:20px;line-height:1.8">
+<li><b>Auth</b>: sign a JWT with the service-account key, exchange it for a 1-hour <code>drive.readonly</code> token. The account has <em>no project roles</em>, only a Viewer share on the one folder.</li>
+<li><b>List + diff</b>: list the folder, keep <code>briefing-YYYY-MM-DD.md</code> and <code>sources.md</code>, compare each file's md5 with <code>drive_files</code>.</li>
+<li><b>Download + parse strictly</b>: ≤ 512 KB, ≤ 200 items, exact structure, links must be plain <code>https</code>. Any deviation → <code>FormatError</code> → that file is logged and skipped, and the rest continue.</li>
+<li><b>Commit</b>: back up the live DB to a working copy, run pending migrations, apply all entries in one transaction, <code>verify()</code>, keep <code>.prev</code>, <code>rename()</code> into place. (See "DB swap" below.)</li>
+<li><b>Exit code</b>: 0 ok · 1 something rejected · 2 hard error. systemd records it, so a failure shows up in <code>systemctl</code> and the journal.</li></ol>
+<p><b>Why pull instead of push?</b> Originally Grok Bot pushed a whole <code>briefing.db</code> over SSH to a restricted upload shell. That meant trusting a binary DB written by an LLM agent and keeping an inbound account for it. Pulling markdown lets <em>our</em> code own the schema and validation, and the server needs nothing inbound.</p>
+<p class="files" style="font:12px var(--mono);color:var(--muted)">ingest/pull.js · ingest/briefing-md.js · ingest/sources-md.js · ingest/apply.js</p>`,
+  md: `<p style="margin-top:0">The text comes from an LLM summarizing arbitrary web pages, so it's <b>untrusted</b>. If a page contains a prompt injection or <code>&lt;script&gt;</code>, that text could end up in the briefing. Three layers handle it:</p>
+<ol style="line-height:1.8"><li><b>Parse</b>: the strict parser rejects malformed or non-https links (no <code>javascript:</code> URLs).</li>
+<li><b>Store markdown, render as text</b>: the DB never holds HTML. <code>shared/inline-md.js</code> tokenizes a tiny subset (links, bold, code) and <code>Markdown.svelte</code> renders the tokens as Svelte elements and text nodes. There is <b>no <code>{@html}</code> anywhere</b>, so raw HTML in a briefing shows up as literal characters. A bad row can look wrong, but it can't run code.</li>
+<li><b>CSP backstop</b>: nonce-only scripts, <code>connect-src 'self'</code>. Even if something got through, it couldn't run or send data out.</li></ol>
+<p>The API applies the same principle: it returns plain text plus <code>{label,url}</code> link objects, so clients don't need to sanitize anything.</p>`,
+  mig: `<p style="margin-top:0">Schema = numbered SQL files in <code>ingest/migrations/</code>; <code>PRAGMA user_version</code> = last applied. They <b>ship inside the ingest image</b> and run on ingest's working copy, inside the same transaction as the data apply, before <code>verify()</code>. A migration that breaks real data therefore never reaches the live file.</p>
+<ul style="line-height:1.8"><li><b>Immutable once merged</b>: CI's <code>check-migrations.sh</code> fails a PR that edits, renames or deletes an existing migration, because it has already run in prod and won't run again.</li>
+<li><b>Data backfills in JS</b>: <code>AFTER_MIGRATION[n]</code> runs right after migration n in the same transaction (e.g. 0003 fills <code>items.summary</code> by parsing <code>body_md</code>). This was chosen over forcing a re-ingest, which would miss days no longer in Drive and change item IDs.</li>
+<li><b>Tested</b>: every migration on an empty DB + <code>verify()</code> + <code>schema.ts</code> must match the real columns.</li>
+<li><b>Order at deploy</b>: ingest (migrate) → then the new app. Migrations should be additive so the old app keeps working during that window.</li>
+<li><b>Adopting the legacy DB</b>: a version-0 DB that already had the tables was adopted as version 1 without running the baseline.</li></ul>`,
+  search: `<p style="margin-top:0">SQLite <b>FTS5</b> over <code>items(headline, body)</code> as an <em>external-content</em> table: no duplicated text, and no triggers. <code>apply.js</code> removes and re-adds a date's FTS rows explicitly in the same transaction, and <code>verify()</code> runs FTS's own <code>integrity-check</code> to catch drift.</p>
+<ul style="line-height:1.8"><li>Ranking happens inside FTS (<code>ORDER BY bm25(items_fts) LIMIT n</code>), with <code>snippet()</code> for highlights. Only the matching IDs are loaded afterwards.</li>
+<li>Prefix matching only for words of 3+ characters, to keep queries cheap.</li>
+<li>Fallback to an escaped <code>LIKE</code> if <code>meta.fts</code> isn't set (older DBs).</li>
+<li>Input caps (200 chars / 8 words) + Cloudflare rate limit, because this is the one public endpoint where users control the cost.</li></ul>`,
+};
+const dataPanel = document.getElementById('dataPanel');
+function renderData(k) { dataPanel.innerHTML = DATA[k]; document.querySelectorAll('#dataTabs button').forEach((b) => b.classList.toggle('on', b.dataset.dt === k)); }
+document.querySelectorAll('#dataTabs button').forEach((b) => b.onclick = () => renderData(b.dataset.dt));
+renderData('schema');
+
+/* ================= HISTORY ================= */
+const ERAS = [
+  { k: 'Homelab', d: 'Oct 11–12', t: `<h3 style="margin-top:0">1 · Proxmox homelab (CT 101)</h3>
+<p>Started as a SvelteKit app in an LXC container on Evan's Proxmox server, behind <b>Caddy</b>. CI deployed over the <b>tailnet</b>. Grok Bot <b>pushed its own SQLite DB</b> over SSH to a restricted upload shell.</p>
+<p>Early hardening: systemd sandboxing, outbound traffic blocked for the app (and Caddy), runtime-only installs without install scripts, a CSP, and keeping npm code off the tailnet-joined CI runner.</p>
+<p class="m">PRs #1–#13</p>` },
+  { k: 'Own the data', d: 'Oct 13', t: `<h3 style="margin-top:0">2 · Own the data contract</h3>
+<p>Switched from <em>accepting DB pushes</em> to <em>pulling markdown from Drive</em> (#19), then stored markdown and rendered it without <code>{@html}</code> (#22), then numbered SQL migrations checked in CI (#24, #25), plus a hardening pass (#26).</p>
+<p><b>Why it matters:</b> the trust boundary moved. Instead of running a binary blob produced by an LLM agent, the system parses a text format it defines, so schema and validation are its own.</p>` },
+  { k: 'Cloud', d: 'Oct 13–16', t: `<h3 style="margin-top:0">3 · DigitalOcean + Cloudflare</h3>
+<p>Moved to a droplet created with Terraform (#27), fronted by a <b>Cloudflare Tunnel</b>. CI deploys came back through a tunnel + Access (#28). SSH over Tailscale (#35). The Sources page comes from <code>sources.md</code> (#36). The plain-text JSON API and app tests landed (#48), along with search ranking inside FTS (#49).</p>
+<p>Simplification: <b>removed Caddy</b> (#56), so the tunnel points straight at the app. Replaced the nftables egress firewall with systemd <code>IPAddressDeny</code> (#60), which works on a real VM but was ignored inside LXC.</p>` },
+  { k: 'Containers', d: 'Oct 19–20', t: `<h3 style="margin-top:0">4 · Containerize</h3>
+<p>Planned as one PR per step: move shared code to <code>shared/</code> (#63) → ingest image (#64) → app image (#65) → compose with networks/volume/web tunnel (#66) → Drive-key group fix (#68) → CI builds and pushes to GHCR (#69) → apex DNS to the new web tunnel (#70) → deploy.sh switches to containers and removes the old systemd app once the containers are healthy (#71).</p>
+<p><b>Cutover without downtime:</b> the images were pushed first, the volume was seeded from the old data dir by hand, and the new stack ran in parallel. DNS was flipped, and only then did the deploy script switch over and remove the old service, only after the new containers were healthy.</p>
+<p>The <code>internal: true</code> network replaced <code>IPAddressDeny</code>, so the app's no-outbound rule is now enforced by Docker.</p>` },
+  { k: 'Now', d: 'Nov', t: `<h3 style="margin-top:0">5 · Today</h3>
+<p>Stable since the cutover (verified 2026-10-31: containers up 10 days, hourly ingest succeeding). Latest work is product-side: a <b>Notes</b> section with an interactive explainer on reading AI benchmarks. Next: the R2 backup, then post-cutover cleanup.</p>
+<p>A Laravel + MongoDB rewrite was tried and abandoned in a day (Oct 14). The current stack fits the problem, and a rewrite would have added a database server for no gain.</p>` },
+];
+const eraBtns = document.getElementById('eraBtns'), eraPanel = document.getElementById('eraPanel');
+eraBtns.innerHTML = ERAS.map((e, i) => `<button data-era="${i}">${e.k} <span class="m" style="font-size:12px">${e.d}</span></button>`).join('');
+function renderEra(i) { eraPanel.innerHTML = ERAS[i].t; eraBtns.querySelectorAll('button').forEach((b) => b.classList.toggle('on', +b.dataset.era === i)); }
+eraBtns.querySelectorAll('button').forEach((b) => b.onclick = () => renderEra(+b.dataset.era));
+renderEra(0);
+
+/* ================= DECISIONS ================= */
+const DEC = [
+  ['Data', 'Pull markdown from Drive, not accept DB pushes', 'Grok Bot SSH-uploads briefing.db (the original design)', `Our code owns schema + validation; no inbound account; the LLM's output is parsed instead of trusted.`, 'Depends on Drive + a service account; strict parser rejects slightly-off files (by design).'],
+  ['Data', 'SQLite on a shared volume', 'Postgres container; managed DB', 'One writer once an hour, small read-heavy data. No server, pool or network hop; the file is the whole DB, easy to copy for dev.', 'No concurrent writers. Fine until something like comments needs a second writer.'],
+  ['Data', 'Copy → migrate → verify → atomic rename', 'Write the live DB in place; WAL mode', 'Readers never see partial state; a failure leaves prod untouched; <code>.prev</code> gives a one-step data rollback.', 'Copies the whole DB each run (trivial at this size).'],
+  ['Data', 'Numbered SQL migrations, immutable once merged, run by ingest', 'drizzle-kit push; ORM migrations', 'Plain SQL is reviewable; CI enforces immutability; migrations run on the copy and are verified before going live.', 'Must keep schema.ts in sync by hand (a test catches drift).'],
+  ['Security', 'Store markdown, render as text, no {@html}', 'Sanitize HTML (DOMPurify etc.)', 'Not producing HTML at all beats sanitizing it. The subset (links/bold/code) is all a briefing needs.', 'Richer formatting needs tokenizer work.'],
+  ['Security', 'Zero inbound ports: tunnels + Tailscale', 'Open 443 with Caddy/Let\'s Encrypt; public SSH with fail2ban', 'Nothing to scan; origin IP hidden; edge TLS, caching and rate limits included.', 'Cloudflare is in the path and a dependency.'],
+  ['Security', 'Separate tunnel for CI SSH, gated by Access', 'Reuse the web tunnel; GitHub-hosted runner on the tailnet', 'Web connector can never reach a shell; two independent checks (service token + 127.0.0.1-only key).', 'Two tokens to manage and rotate.'],
+  ['Security', 'App on an internal-only Docker network, volume :ro', 'Rely on app correctness', 'A compromised app can\'t exfiltrate data, download tools, or modify data. Enforced by Docker networking, not by the app code.', 'The app can never call an external API without a network change.'],
+  ['Security', 'Deploy job runs no npm code; actions SHA-pinned; secrets in an environment', 'One job that builds and deploys', 'Malicious dependency code runs only where there are no deploy credentials.', 'More jobs, a longer pipeline.'],
+  ['Containers', 'Two images (app, ingest), not one', 'Single container running both', 'Different privileges (network, write, secret) and lifecycles (always-on vs per-run). Separate containers let the kernel enforce the separation.', 'Two images to build and push.'],
+  ['Containers', 'Multi-stage app image; allow-list dockerignore', 'Single stage; denylist ignore', 'Smaller image without the toolchain; secrets/state/DB can\'t enter the build context by accident.', 'New top-level dirs must be opted in.'],
+  ['Containers', 'Host systemd timer runs <code>compose run --rm ingest</code>', 'Cron inside a container; supercronic; Ofelia', 'systemd handles catch-up (Persistent), logging and exit status; no container needs the Docker socket.', 'Schedule lives outside compose.yaml.'],
+  ['Containers', 'Secrets as bind-mounted files, matched by owner/group', 'Env vars; baking into images; swarm secrets', 'Not visible in inspect/environ or image layers; file permissions do the access control.', 'Host UIDs/GIDs leak into compose (DRIVE_KEY_GID).'],
+  ['Delivery', 'Images built in CI, pushed to GHCR by commit SHA; droplet only pulls', 'Build on the droplet; :latest tags', 'Reproducible: the deployed bytes are what CI tested; rollback = redeploy an old SHA; a 1 GB box doesn\'t compile anything.', 'Needs the registry; images must exist before deploy.'],
+  ['Delivery', 'Ingest (migrations) before app restart; <code>up --wait</code> on healthcheck', 'Restart app first; migrate in app startup', 'New code never reads an old schema; a broken image fails the deploy loudly.', 'Brief old-app/new-schema window, so migrations must be additive.'],
+  ['Delivery', 'One small PR per change; no stacked PRs', 'Big-bang branches', 'Each change is reviewable and safe to merge on its own, e.g. the container cutover was 9 PRs.', 'Slower to land multi-step work.'],
+  ['Infra', 'Terraform for DO + Cloudflare; scripts for inside the box', 'Click-ops; Ansible; Terraform provisioners', 'Network/DNS/Access are reviewable as code; provision.sh is simple and one-time; deploy.sh is idempotent.', 'Two tools; state file is local and sensitive.'],
+  ['Infra', 'One small droplet, no HA', 'Kubernetes; multiple nodes; PaaS', 'Matches the stakes. Rebuild is scripted. Complexity costs more than an occasional outage.', 'Single point of failure; backup is the real need.'],
+];
+const AREAS = ['All', ...new Set(DEC.map((d) => d[0]))];
+const decF = document.getElementById('decFilters'), decC = document.getElementById('decCards');
+decF.innerHTML = AREAS.map((a) => `<button data-a="${a}">${a}</button>`).join('');
+function renderDec(a) {
+  decF.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.a === a));
+  decC.innerHTML = DEC.filter((d) => a === 'All' || d[0] === a).map(([area, what, alt, why, cost]) => `
+    <div class="panel" style="padding:14px 18px">
+      <div class="eyebrow" style="margin-bottom:6px">${area}</div>
+      <div style="font-weight:600;margin-bottom:8px">${what}</div>
+      <div style="font-size:14.5px"><span class="m">Instead of:</span> ${alt}</div>
+      <div style="font-size:14.5px;margin-top:4px"><span class="y">Why:</span> ${why}</div>
+      <div style="font-size:14.5px;margin-top:4px"><span class="n">Cost:</span> ${cost}</div>
+    </div>`).join('');
+}
+decF.querySelectorAll('button').forEach((b) => b.onclick = () => renderDec(b.dataset.a));
+renderDec('All');
+
+/* ================= INTERVIEW ================= */
+const QS = [
+  ['Walk me through what happens when someone loads the homepage.', `DNS → Cloudflare edge (TLS, proxied CNAME) → down the outbound tunnel cloudflared opened → <code>http://app:3000</code> over the internal Docker network → SvelteKit loader → <code>withDb()</code> opens SQLite read-only, queries via Drizzle, closes → SSR HTML with nonce CSP + security headers → back up the tunnel. No public port involved anywhere.`],
+  ['How do you update the database without downtime or locking readers?', `Ingest never touches the live file: SQLite backup API → working copy → migrate + apply in one transaction → <code>verify()</code> (integrity, FKs, FTS) → hard-link old to <code>.prev</code> → <code>rename()</code> over the live path (atomic). The app opens a fresh connection per request, so the next request sees the new inode. A failure at any step leaves prod untouched.`],
+  ['The content comes from an LLM. How do you stop it injecting something malicious?', `Treat it as untrusted input. Strict parser (format, sizes, https-only links). Store markdown, never HTML; render a tiny token subset as Svelte text with no <code>{@html}</code>. Nonce CSP with <code>connect-src 'self'</code> as a backstop. The API returns plain text plus link objects. And the app container itself can't reach the internet.`],
+  ['If the app were compromised, what could an attacker do?', `Very little. It runs as non-root on a read-only root fs with no capabilities and no-new-privileges. It's on an <code>internal: true</code> network (no outbound), the DB is mounted <code>:ro</code>, and it has no secrets, no Docker socket and no route to sshd. They could read already-public data and serve bad pages until the next restart.`],
+  ['Why Docker at all for two small Node processes?', `Mainly isolation, plus reproducibility. The kernel enforces per-process network, filesystem and secret boundaries, which replaced a pile of systemd and nftables settings. CI-built, SHA-tagged images mean what's deployed is exactly what was tested, and rollback is a tag. It also removed Node from the host.`],
+  ['Why not Kubernetes / a managed platform?', `The scale doesn't call for it: one writer once an hour, low traffic, one person. Compose on one droplet is cheap and easy to understand, and it's fully scripted to rebuild. I'd move up when there's a real availability requirement or several services.`],
+  ['How do deploys work, and how do you roll back?', `Merge → CI checks + builds images → pushes <code>:sha7</code> to GHCR → deploy job SSHes via Access + host tunnel → deploy.sh writes compose.yaml + <code>.env TAG</code>, pulls, runs ingest (migrations), <code>up --wait</code> on the healthcheck, prunes old images. Rollback: <code>TAG=&lt;old sha&gt; npm run deploy</code>. Data rollback: <code>briefing.db.prev</code>.`],
+  ['How do you handle schema changes safely?', `Numbered SQL files, immutable once merged (CI-enforced), applied on ingest's copy inside the same transaction as the data and verified before the swap. They ship in the ingest image and run before the new app starts. They have to be backward-compatible because old code briefly sees the new schema. JS backfills go in the same transaction.`],
+  ['How does CI get onto a server with no open ports?', `Through a dedicated host-level Cloudflare Tunnel to <code>127.0.0.1:22</code>, behind a Cloudflare Access app that requires a service token. The SSH key is restricted to <code>from="127.0.0.1"</code> with no forwarding, and the host key is pinned. The job that holds these secrets runs no third-party npm code.`],
+  ['What would you do differently or improve next?', `Off-box backups first (it's the only full copy of the archive), then automatic rollback on a failed health wait and zero-downtime app swaps. Maybe compose-based local dev. If comments are added, I'd rethink the single-writer model and add per-IP limits using <code>CF-Connecting-IP</code>.`],
+  ['Biggest mistake or lesson?', `Possible answers: systemd <code>IPAddressDeny</code> was silently ignored inside LXC, so I needed nftables there and learned to verify a control actually works rather than assume it does. Or: the one-day Laravel/Mongo rewrite, which was a reminder to fix the actual problem instead of switching stacks.`],
+  ['How do you know it is working?', `The footer shows the deployed commit. Healthcheck + <code>compose up --wait</code> at deploy. Ingest exit codes surface in systemd/journal. <code>verify()</code> on every swap. CI runs migration, type, test and build checks on every PR. A gap I'd mention: there's no external uptime alerting yet.`],
+];
+let qOrder = QS.map((_, i) => i);
+const qCards = document.getElementById('qCards');
+function renderQs() {
+  qCards.innerHTML = qOrder.map((i) => `<details class="panel card"><summary>${QS[i][0]}</summary><p>${QS[i][1]}</p></details>`).join('');
+  document.getElementById('qCount').textContent = `${QS.length} questions`;
+}
+document.getElementById('qShuffle').onclick = () => { qOrder.sort(() => Math.random() - .5); renderQs(); };
+document.getElementById('qRevealAll').onclick = () => qCards.querySelectorAll('details').forEach((d) => d.open = true);
+renderQs();
+</script>
+</body>
+</html>
