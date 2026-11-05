@@ -40,5 +40,8 @@
   "imports": {
     "#lib/*": "./src/lib/*",
     "#shared/*": "./shared/*"
+  },
+  "overrides": {
+    "postcss-selector-parser": "^6.1.5"
   }
 }

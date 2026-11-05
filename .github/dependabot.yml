@@ -1,15 +1,19 @@
-# Weekly PRs for npm and GitHub Actions updates. Each PR runs the check job; merging deploys.
-# Security fixes open right away, outside the weekly schedule.
+# Monthly PRs for npm and GitHub Actions updates, grouped so each ecosystem opens one PR. Each PR runs
+# the check job; merging deploys. Security fixes open right away, outside the monthly schedule.
 version: 2
 updates:
   - package-ecosystem: npm
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
     groups:
       # One PR for all non-major bumps instead of one per package.
       minor-and-patch:
         update-types: [minor, patch]
+      # Security fixes that land at the same time share one PR too.
+      security:
+        applies-to: security-updates
+        patterns: ["*"]
     ignore:
       # SvelteKit 3 and svelte-check peer on typescript ^6; drop this once they accept 7.
       - dependency-name: typescript
@@ -18,4 +22,8 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
+    groups:
+      # checkout, setup-node and the artifact actions usually move together; one PR for all of them.
+      actions:
+        patterns: ["*"]
