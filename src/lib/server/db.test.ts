@@ -2,7 +2,7 @@
 // search-fallback.test.ts covers search() without it.
 import Database from 'better-sqlite3';
 import { describe, expect, test } from 'vitest';
-import { getBriefing, latestDate, listBriefings, listOutageChecks, listSources, outageStatus, search } from './db';
+import { getBriefing, latestDate, listBriefings, listSources, search } from './db';
 import { INGESTED_AT } from './test-fixture';
 
 describe('listBriefings', () => {
@@ -83,12 +83,6 @@ test('listSources keeps file order, groups and subgroups', () => {
 		[3, '2. X', 'search_news', '`outage`'],
 		[4, '2. X', 'Accounts watched', 'Labs: @OpenAI, @AnthropicAI']
 	]);
-});
-
-test('outage checks: newest first, and the newest decides the status', () => {
-	expect(listOutageChecks(1, 0)).toMatchObject({ rows: [{ is_alert: false, text: 'No alert.' }], total: 2 });
-	expect(listOutageChecks(1, 1).rows[0]).toMatchObject({ is_alert: true });
-	expect(outageStatus()).toMatchObject({ active: false, latest: { checked_at: '2026-10-12T09:00:00-04:00' } });
 });
 
 describe('search (FTS)', () => {

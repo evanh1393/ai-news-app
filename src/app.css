@@ -133,3 +133,15 @@
 		animation-delay: 0.3s;
 	}
 }
+
+/* .reveal materializes as it scrolls into view. Pure CSS, so where scroll timelines aren't supported
+   it simply shows, and nothing is hidden before hydration. */
+@supports (animation-timeline: view()) {
+	@media (prefers-reduced-motion: no-preference) {
+		.reveal {
+			animation: materialize linear both;
+			animation-timeline: view();
+			animation-range: entry 0% entry 220px;
+		}
+	}
+}

@@ -3,16 +3,15 @@
 	import { page } from '$app/state';
 	import { refreshAll } from '$app/navigation';
 	import { version } from '$app/env';
-	import { OUTAGES_MAINTENANCE } from '#lib/outages.js';
 	import Logo from '#lib/components/Logo.svelte';
 
-	let { data, children } = $props();
+	let { children } = $props();
 
 	const nav = [
 		{ href: '/', label: 'Latest' },
 		{ href: '/archive', label: 'Archive' },
-		{ href: '/outages', label: 'Outages' },
 		{ href: '/sources', label: 'Sources' },
+		{ href: '/notes', label: 'Notes' },
 		{ href: '/search', label: 'Search' }
 	];
 
@@ -30,7 +29,7 @@
 		localStorage.theme = theme;
 	}
 
-	// Refresh data (outage dot etc.) every 5 minutes.
+	// Refresh data (e.g. a new briefing on the home page) every 5 minutes.
 	$effect(() => {
 		const t = setInterval(() => refreshAll(), 5 * 60_000);
 		return () => clearInterval(t);
@@ -56,13 +55,7 @@
 							class:opacity-50={!isActive(n.href)}
 							aria-current={isActive(n.href) ? 'page' : undefined}
 						>
-							{#if n.href === '/outages'}
-								{#if OUTAGES_MAINTENANCE}
-									<span class="status status-warning" title="Outage checks are under maintenance"></span>
-								{:else}
-									<span class="status" class:status-success={!data.active} class:status-error={data.active} class:animate-pulse={data.active}></span>
-								{/if}
-							{/if}{n.label}
+							{n.label}
 						</a>
 					</li>
 				{/each}
