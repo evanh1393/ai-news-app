@@ -6,8 +6,8 @@ import { asc, count, desc, eq, getTableColumns, inArray, or, sql, type AnyColumn
 import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { BRIEFING_DB } from '$app/env/private';
 import * as schema from './schema';
-import { briefings, itemLinks, items, meta, outageChecks, sections, sources } from './schema';
-import type { Briefing, Item, Link, OutageCheck, Section, Source } from './schema';
+import { briefings, itemLinks, items, meta, sections, sources } from './schema';
+import type { Briefing, Item, Link, Section, Source } from './schema';
 
 const DB_PATH = BRIEFING_DB;
 
@@ -87,21 +87,6 @@ export function getBriefing(date: string): FullBriefing | undefined {
 				.filter((s) => s.title !== 'Outages')
 				.map((s) => ({ ...s, items: withLinks.filter((i) => !i.is_outage && i.category === s.title) }))
 		};
-	});
-}
-
-export function listOutageChecks(limit: number, offset: number): Page<OutageCheck> {
-	return withDb((db) => ({
-		rows: db.select().from(outageChecks).orderBy(desc(outageChecks.checked_at)).limit(limit).offset(offset).all(),
-		total: db.select({ n: count() }).from(outageChecks).get()?.n ?? 0
-	}));
-}
-
-/** Newest outage check, used for the header dot and banners. */
-export function outageStatus(): { active: boolean; latest: OutageCheck | undefined } {
-	return withDb((db) => {
-		const latest = db.select().from(outageChecks).orderBy(desc(outageChecks.checked_at)).limit(1).get();
-		return { active: !!latest?.is_alert, latest };
 	});
 }
 

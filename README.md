@@ -93,7 +93,7 @@ sudo docker compose run --rm ingest --dry-run   # download + validate, no writes
 journalctl -u briefing-pull                     # run history
 ```
 
-`npm test` covers the parser and the DB writes, and the app's reads of them. Outage checks are paused (`src/lib/outages.ts`) until they have their own feed.
+`npm test` covers the parser and the DB writes, and the app's reads of them.
 
 Grok Bot used to push a whole `briefing.db` over SSH as `newsbot`. That path is gone: the upload shell, the account and `/opt/ai-briefing/docs` were removed from CT 101, the homelab container that hosted the site before the droplet, on 2026-10-13.
 

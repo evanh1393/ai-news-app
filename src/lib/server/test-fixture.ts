@@ -78,12 +78,6 @@ export const SOURCES = `# Monitoring Sources
 - Labs: @OpenAI, @AnthropicAI
 `;
 
-/** Rows for outage_checks, which no Drive file feeds yet (src/lib/outages.ts). Newest last. */
-export const OUTAGE_CHECKS = [
-	{ checked_at: '2026-10-12T08:00:00-04:00', is_alert: 1, text: 'API errors at Example Cloud.' },
-	{ checked_at: '2026-10-12T09:00:00-04:00', is_alert: 0, text: 'No alert.' }
-];
-
 /** Ingest time stamped on every fixture row. */
 export const INGESTED_AT = '2026-10-13T11:40:00.000Z';
 
@@ -105,8 +99,6 @@ export function buildFixture(file: string, { fts = true }: { fts?: boolean } = {
 			],
 			INGESTED_AT
 		);
-		const check = db.prepare('INSERT INTO outage_checks (checked_at, is_alert, text) VALUES (?, ?, ?)');
-		for (const c of OUTAGE_CHECKS) check.run(c.checked_at, c.is_alert, c.text);
 		if (!fts) db.prepare("DELETE FROM meta WHERE key = 'fts'").run();
 	} finally {
 		db.close();

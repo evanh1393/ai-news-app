@@ -39,13 +39,6 @@ export const itemLinks = sqliteTable('item_links', {
 	url: text('url').notNull()
 });
 
-export const outageChecks = sqliteTable('outage_checks', {
-	id: integer('id').primaryKey(),
-	checked_at: text('checked_at').notNull(),
-	is_alert: integer('is_alert', { mode: 'boolean' }).notNull(),
-	text: text('text').notNull()
-});
-
 export const sources = sqliteTable('sources', {
 	id: integer('id').primaryKey(),
 	grp: text('grp').notNull(),
@@ -64,5 +57,4 @@ export type Briefing = typeof briefings.$inferSelect;
 export type Section = typeof sections.$inferSelect;
 export type Item = typeof items.$inferSelect;
 export type Link = typeof itemLinks.$inferSelect;
-export type OutageCheck = typeof outageChecks.$inferSelect;
 export type Source = typeof sources.$inferSelect;

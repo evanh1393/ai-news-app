@@ -2,17 +2,11 @@
 // event fields they read.
 import { describe, expect, test } from 'vitest';
 import { callLoad, expectHttpError } from '#lib/test-utils.js';
-import { load as layout } from './+layout.server';
 import { load as home } from './+page.server';
 import { load as archive } from './archive/+page.server';
 import { load as briefing } from './briefing/[date]/+page.server';
-import { load as outages } from './outages/+page.server';
 import { load as searchPage } from './search/+page.server';
 import { load as sources } from './sources/+page.server';
-
-test('layout: outage status from the newest check', async () => {
-	expect(await callLoad(layout, '/')).toMatchObject({ active: false, latest: { text: 'No alert.' } });
-});
 
 test('home: the latest briefing', async () => {
 	const data = await callLoad(home, '/');
@@ -47,18 +41,6 @@ describe('archive', () => {
 
 	test.each(['0', '-1', 'two', '1.0', '99999999999999999999'])('400s on page=%s', async (page) => {
 		await expectHttpError(() => callLoad(archive, `/archive?page=${page}`), 400);
-	});
-});
-
-describe('outages', () => {
-	test('lists checks, newest first', async () => {
-		const data = await callLoad(outages, '/outages');
-		expect(data).toMatchObject({ page: 1, pages: 1 });
-		expect(data.checks.map((c: { is_alert: boolean }) => c.is_alert)).toEqual([false, true]);
-	});
-
-	test('404s past the last page', async () => {
-		await expectHttpError(() => callLoad(outages, '/outages?page=2'), 404);
 	});
 });
 
